@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
+
+load_dotenv(".env")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,6 +48,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'dj_rest_auth.registration',
     'accounts',
     'adminpanel',
@@ -67,17 +72,45 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'allauth.middleware.AuthenticationMiddleware',
-    'allauth.account.middleware.AccountMiddleware'
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
+
+
 ACCOUNT_AUTHENTICATION_METHOD = "email"  # Use Email / Password authentication
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "none" # Do not require email confirmation
 
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+GOOGLE_OAUTH_CALLBACK_URL = os.getenv("GOOGLE_OAUTH_CALLBACK_URL")
 
-ROOT_URLCONF = 'tafakari.urls'
+# django-allauth (social)
+# Authenticate if local account with this email address already exists
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+# Connect local account and social account if local account with that email address already exists
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APPS": [
+            {
+                "client_id": GOOGLE_OAUTH_CLIENT_ID,
+                "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+                "key": "",
+            },
+        ],
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+    }
+}
+
+# Django template configurations
+
+
 
 TEMPLATES = [
     {
@@ -93,6 +126,18 @@ TEMPLATES = [
         },
     },
 ]
+
+TEMPLATES[0]['DIRS'] = [os.path.join(BASE_DIR, 'templates')]
+
+REST_AUTH_REGISTER_SERIALIZERS = {
+    'REGISTER_SERIALIZER': 'accounts.serializers.CustomRegisterSerializer',
+}
+
+
+
+ROOT_URLCONF = 'tafakari.urls'
+
+
 
 WSGI_APPLICATION = 'tafakari.wsgi.application'
 

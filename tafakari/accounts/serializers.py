@@ -1,8 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import CustomUser
+from dj_rest_auth.registration.serializers import RegisterSerializer
 
-class RegisterSerializer(serializers.ModelSerializer):
+
+class RegisterUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     
 
@@ -41,3 +43,16 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("User account is inactive")
 
         return {"user": user}
+    
+
+
+
+
+class CustomRegisterSerializer(RegisterSerializer):
+    username = None  # Explicitly remove the username field
+
+    def get_cleaned_data(self):
+        data = super().get_cleaned_data()
+        data['email'] = self.validated_data.get('email', '')
+        data['password1'] = self.validated_data.get('password', '')
+        return data
