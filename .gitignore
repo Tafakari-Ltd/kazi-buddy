@@ -1,1 +1,10 @@
 virtual/
+__pycache__/
+*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+*.whl
+*.mypy_cache/
