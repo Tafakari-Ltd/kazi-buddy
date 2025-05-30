@@ -59,7 +59,9 @@ INSTALLED_APPS = [
     'workers',
     'jobs',
     'ratings',
-    'utils'
+    'utils',
+    'skills',
+    'documents',
 ]
 
 SITE_ID = 1

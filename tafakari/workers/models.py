@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 
 from django.db.models import JSONField
-
+from skills.models import Skill
 from accounts.models import CustomUser
 import uuid
 # Create your models here.
@@ -30,3 +30,22 @@ class WorkerProfile(models.Model):
     admin_notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+
+class WorkerSkill(models.Model):
+    EXPERIENCE_LEVELS = [
+            ('beginner', 'Beginner'),
+            ('intermediate', 'Intermediate'),
+            ('advanced', 'Advanced'),
+            ('expert', 'Expert'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    worker_profile = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE)
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
+    experience_level = models.CharField(max_length=20, choices=EXPERIENCE_LEVELS, default='intermediate')
+    years_experience = models.PositiveIntegerField(default=0)
+    is_certified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+            unique_together = ('worker_profile', 'skill')
