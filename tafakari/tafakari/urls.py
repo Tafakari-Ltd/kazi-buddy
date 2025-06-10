@@ -32,5 +32,9 @@ urlpatterns = [
     #google auth urls
     path('api/v1/auth/google/', GoogleLogin.as_view(), name='google_login'),
     path('api/v1/auth/google/callback/', GoogleLoginCallback.as_view(), name='google_callback'),
+    # Include the URLs from the workers app
+    path('api/workers/', include('workers.urls')),
+    # Include the URLs from the employers app
+    path('api/employers/', include('employers.urls')),
 
 ]

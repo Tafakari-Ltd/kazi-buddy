@@ -31,6 +31,24 @@ class WorkerProfile(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def calculate_completion(self):
+        """Determine the percentage of profile fields that are filled."""
+        fields_to_check = [
+            self.location,
+            self.location_text,
+            self.years_experience,
+            self.hourly_rate,
+            self.availability_schedule,
+            self.bio,
+        ]
+        total = len(fields_to_check)
+        filled = sum([1 for field in fields_to_check if field not in [None, '', {}]])
+        return int((filled / total) * 100) if total else 0
+
+    def save(self, *args, **kwargs):
+        self.profile_completion_percentage = self.calculate_completion()
+        super().save(*args, **kwargs)
+
 class WorkerSkill(models.Model):
     EXPERIENCE_LEVELS = [
             ('beginner', 'Beginner'),
