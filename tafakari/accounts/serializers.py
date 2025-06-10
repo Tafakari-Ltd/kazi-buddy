@@ -43,6 +43,13 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("User account is inactive")
 
         return {"user": user}
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'full_name', 'email']
+        read_only_fields = ['id', 'full_name', 'email']
     
 
 

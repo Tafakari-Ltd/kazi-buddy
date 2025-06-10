@@ -1,5 +1,6 @@
 from django.db import models
 import uuid
+from accounts.models import CustomUser
 
 # Create your models here.
 class SkillCategory(models.Model):
@@ -9,6 +10,21 @@ class SkillCategory(models.Model):
     icon_url = models.URLField(max_length=500, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        CustomUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='created_categories'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        CustomUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='updated_categories'
+    )
 
     def __str__(self):
         return self.name
@@ -20,6 +36,21 @@ class Skill(models.Model):
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        CustomUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='created_categories'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        CustomUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='updated_categories'
+    )
 
     def __str__(self):
         return self.name
