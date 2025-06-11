@@ -15,7 +15,7 @@ class SkillCategory(models.Model):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name='created_categories'
+        related_name='created_categories_skillcategory'
     )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
@@ -23,7 +23,7 @@ class SkillCategory(models.Model):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name='updated_categories'
+        related_name='updated_categories_skillcategory'
     )
 
     def __str__(self):
@@ -41,7 +41,7 @@ class Skill(models.Model):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name='created_categories'
+        related_name='created_categories_skill'
     )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
@@ -49,7 +49,7 @@ class Skill(models.Model):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name='updated_categories'
+        related_name='updated_categories_skill'
     )
 
     def __str__(self):
