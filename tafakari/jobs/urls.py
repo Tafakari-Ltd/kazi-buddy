@@ -1,10 +1,51 @@
-from django.urls import path
-from . import views
+from .views import (
+    JobCategoriesListView,
+    JobCategoryDetailView,
+    CreateJobCategoryView,
+    UpdateJobCategoryView,
+    DeleteJobCategoryView,
+    JobsInCategoryView,
+    JobListView,
+    JobDetailView,
+    CreateJobView,
+    UpdateJobView,
+    DeleteJobView,
+    JobSkillsView,
+    UpdateJobStatusView,
+    JobsByEmployerView,
+    ListJobsByCategoryView,
+    ListJobsByFilterView,
+    JobSkillsListView,
+    JobSkillDetailView,
+    CreateJobSkillView,
+    UpdateJobSkillView,
+    DeleteJobSkillView,
+  
+)
 
-urlpatterns = [
-    path('jobs/', views.JobListView.as_view(), name='job-list'),
-    path('jobs/create/', views.JobCreateView.as_view(), name='job-create'),
-    path('jobs/<uuid:id>/', views.JobDetailView.as_view(), name='job-detail'),
-    path('jobs/<uuid:id>/update/', views.JobUpdateView.as_view(), name='job-update'),
-    path('jobs/<uuid:id>/delete/', views.JobDeleteView.as_view(), name='job-delete'),
+from django.urls import path
+
+urlPatterns = [
+    path('categories/', JobCategoriesListView.as_view(), name='job-categories-list'),
+    path('categories/<int:category_id>/', JobCategoryDetailView.as_view(), name='job-category-detail'),
+    path('categories/create/', CreateJobCategoryView.as_view(), name='create-job-category'),
+    path('categories/update/<int:category_id>/', UpdateJobCategoryView.as_view(), name='update-job-category'),
+    path('categories/delete/<int:category_id>/', DeleteJobCategoryView.as_view(), name='delete-job-category'),
+    path('categories/<int:category_id>/jobs/', JobsInCategoryView.as_view(), name='jobs-in-category'),
+    path('jobs/', JobListView.as_view(), name='job-list'),
+    path('jobs/<int:job_id>/', JobDetailView.as_view(), name='job-detail'),
+    path('jobs/create/', CreateJobView.as_view(), name='create-job'),
+    path('jobs/update/<int:job_id>/', UpdateJobView.as_view(), name='update-job'),
+    path('jobs/delete/<int:job_id>/', DeleteJobView.as_view(), name='delete-job'),
+    path('jobs/<int:job_id>/skills/', JobSkillsView.as_view(), name='job-skills'),
+    path('jobs/<int:job_id>/status/', UpdateJobStatusView.as_view(), name='update-job-status'),
+    path('employers/<int:employer_id>/jobs/', JobsByEmployerView.as_view(), name='jobs-by-employer'),
+    path('categories/<int:category_id>/jobs/filter/', ListJobsByCategoryView.as_view(), name='list-jobs-by-category'),
+    path('jobs/filter/', ListJobsByFilterView.as_view(), name='list-jobs-by-filter'),
+    path('skills/', JobSkillsListView.as_view(), name='job-skills-list'),
+    path('skills/<int:skill_id>/', JobSkillDetailView.as_view(), name='job-skill-detail'),
+    path('skills/create/', CreateJobSkillView.as_view(), name='create-job-skill'),
+    path('skills/update/<int:skill_id>/', UpdateJobSkillView.as_view(), name='update-job-skill'),
+    path('skills/delete/<int:skill_id>/', DeleteJobSkillView.as_view(), name='delete-job-skill'),
+
 ]

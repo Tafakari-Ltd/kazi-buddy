@@ -1,259 +1,255 @@
-from rest_framework.views import APIView
+from .serializers import JobSerializer,JobCategorySerializer,JobSkillSerializer
+from rest_framework import views, permissions
+from .models import Job, JobCategory, JobSkill
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
-from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
-from .models import Job, JobCategory, Skill
-from .serializers import (
-    JobListSerializer, JobDetailSerializer, 
-    JobCreateUpdateSerializer
-)
 
+#Job Categories endpoints
 
-class JobListView(APIView):
-    """
-    GET /jobs/ - List/filter/search jobs with pagination
-    """
-    
+class JobCategoriesListView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
     def get(self, request):
+        categories = JobCategory.objects.all()
+        serializer = JobCategorySerializer(categories, many=True)
+        return Response(serializer.data)
+
+class JobCategoryDetailView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, category_id):
         try:
-            # Base queryset - only active, approved, public jobs
-            queryset = Job.objects.filter(
-                status='active', 
-                admin_approved=True,
-                visibility='public'
-            ).select_related('employer', 'category').prefetch_related('job_skills__skill')
-            
-            # Apply filters
-            queryset = self._apply_filters(queryset, request.query_params)
-            
-            # Apply search
-            search = request.query_params.get('search')
-            if search:
-                queryset = queryset.filter(
-                    Q(title__icontains=search) |
-                    Q(description__icontains=search) |
-                    Q(location_text__icontains=search)
-                )
-            
-            # Apply ordering
-            ordering = request.query_params.get('ordering', '-created_at')
-            if ordering in ['-created_at', 'created_at', '-budget_min', 'budget_min', '-budget_max', 'budget_max']:
-                queryset = queryset.order_by(ordering)
-            
-            # Pagination
-            page = int(request.query_params.get('page', 1))
-            page_size = int(request.query_params.get('page_size', 20))
-            
-            paginator = Paginator(queryset, page_size)
-            page_obj = paginator.get_page(page)
-            
-            serializer = JobListSerializer(page_obj.object_list, many=True)
-            
-            return Response({
-                'results': serializer.data,
-                'count': paginator.count,
-                'page': page,
-                'total_pages': paginator.num_pages,
-                'has_next': page_obj.has_next(),
-                'has_previous': page_obj.has_previous()
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': f'Failed to fetch jobs: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            category = JobCategory.objects.get(pk=category_id)
+            serializer = JobCategorySerializer(category)
+            return Response(serializer.data)
+        except JobCategory.DoesNotExist:
+            return Response({"error": "Category not found"}, status=404)
     
-    def _apply_filters(self, queryset, params):
-        """Apply custom filters to queryset"""
-        
-        # Filter by job type
-        job_type = params.get('job_type')
-        if job_type:
-            queryset = queryset.filter(job_type=job_type)
-        
-        # Filter by urgency level
-        urgency = params.get('urgency')
-        if urgency:
-            queryset = queryset.filter(urgency_level=urgency)
-        
-        # Filter by category
-        category = params.get('category')
-        if category:
-            queryset = queryset.filter(category_id=category)
-        
-        # Filter by skills
-        skills = params.get('skills')
-        if skills:
-            skill_names = [s.strip() for s in skills.split(',')]
-            queryset = queryset.filter(
-                job_skills__skill__name__in=skill_names
-            ).distinct()
-        
-        # Filter by location
-        location = params.get('location')
-        if location:
-            queryset = queryset.filter(
-                Q(location_text__icontains=location) | 
-                Q(location__icontains=location)
-            )
-        
-        # Filter by salary range
-        salary_range = params.get('salary_range')
-        if salary_range:
-            try:
-                min_salary, max_salary = map(int, salary_range.split('-'))
-                queryset = queryset.filter(
-                    budget_min__gte=min_salary,
-                    budget_max__lte=max_salary
-                )
-            except (ValueError, TypeError):
-                pass
-        
-        return queryset
+class CreateJobCategoryView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-
-class JobCreateView(APIView):
-    """
-    POST /jobs/ - Create a job posting (auth required)
-    """
-    permission_classes = [IsAuthenticated]
-    
     def post(self, request):
-        # Check if user has employer profile
-        if not hasattr(request.user, 'employer_profile'):
-            return Response({
-                'error': 'Only employers can create job postings'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        serializer = JobCreateUpdateSerializer(data=request.data, context={'request': request})
-        
+        serializer = JobCategorySerializer(data=request.data)
         if serializer.is_valid():
-            try:
-                job = serializer.save()
-                
-                # Return created job details
-                job_serializer = JobDetailSerializer(job)
-                
-                return Response({
-                    'message': 'Job created successfully',
-                    'job_id': str(job.id),
-                    'job_data': job_serializer.data
-                }, status=status.HTTP_201_CREATED)
-                
-            except Exception as e:
-                return Response({
-                    'error': f'Failed to create job: {str(e)}'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            category = serializer.save()
+            return Response(JobCategorySerializer(category).data, status=201)
+        return Response(serializer.errors, status=400)
+
+class UpdateJobCategoryView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request, category_id):
+        try:
+            category = JobCategory.objects.get(pk=category_id)
+            serializer = JobCategorySerializer(category, data=request.data)
+            if serializer.is_valid():
+                updated_category = serializer.save()
+                return Response(JobCategorySerializer(updated_category).data)
+            return Response(serializer.errors, status=400)
+        except JobCategory.DoesNotExist:
+            return Response({"error": "Category not found"}, status=404)
+
+class DeleteJobCategoryView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, category_id):
+        try:
+            category = JobCategory.objects.get(pk=category_id)
+            category.delete()
+            return Response({"message": "Category deleted successfully"}, status=204)
+        except JobCategory.DoesNotExist:
+            return Response({"error": "Category not found"}, status=404)
+
+class JobsInCategoryView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, category_id):
+        try:
+            category = JobCategory.objects.get(pk=category_id)
+            jobs = category.jobs.all()
+            serializer = JobSerializer(jobs, many=True)
+            return Response(serializer.data)
+        except JobCategory.DoesNotExist:
+            return Response({"error": "Category not found"}, status=404)
+
+
+#job endpoints
+class JobListView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        jobs = Job.objects.all()
+        serializer = JobSerializer(jobs, many=True)
+        return Response(serializer.data)
+    
+
+class JobDetailView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id):
+        try:
+            job = Job.objects.get(pk=job_id)
+            serializer = JobSerializer(job)
+            return Response(serializer.data)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class CreateJobView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-class JobDetailView(APIView):
-    """
-    GET /jobs/<id>/ - View specific job details
-    """
+    def post(self, request):
+        serializer = JobSerializer(data=request.data)
+        if serializer.is_valid():
+            job = serializer.save(employer=request.user.employer_profile)
+            return Response(JobSerializer(job).data, status=201)
+        return Response(serializer.errors, status=400)
     
-    def get(self, request, id):
-        try:
-            job = get_object_or_404(
-                Job.objects.select_related('employer', 'category').prefetch_related('job_skills__skill'),
-                id=id
-            )
-            
-            # Increment view count if not the job owner
-            if not (hasattr(request.user, 'employer_profile') and 
-                    request.user.is_authenticated and
-                    request.user.employer_profile == job.employer):
-                job.views_count += 1
-                job.save(update_fields=['views_count'])
-            
-            serializer = JobDetailSerializer(job)
-            
-            return Response({
-                'job_data': serializer.data
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': f'Failed to fetch job details: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class UpdateJobView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-class JobUpdateView(APIView):
-    """
-    PUT /jobs/<id>/ - Update job posting (auth required, owner only)
-    """
-    permission_classes = [IsAuthenticated]
-    
-    def put(self, request, id):
+    def put(self, request, job_id):
         try:
-            job = get_object_or_404(Job, id=id)
-            
-            # Check if user is the job owner
-            if not (hasattr(request.user, 'employer_profile') and 
-                    request.user.employer_profile == job.employer):
-                return Response({
-                    'error': 'You can only update your own job postings'
-                }, status=status.HTTP_403_FORBIDDEN)
-            
-            serializer = JobCreateUpdateSerializer(
-                job, 
-                data=request.data, 
-                context={'request': request},
-                partial=True
-            )
-            
+            job = Job.objects.get(pk=job_id)
+            serializer = JobSerializer(job, data=request.data)
             if serializer.is_valid():
                 updated_job = serializer.save()
-                
-                # Return updated job details
-                job_serializer = JobDetailSerializer(updated_job)
-                
-                return Response({
-                    'message': 'Job updated successfully',
-                    'job_data': job_serializer.data
-                }, status=status.HTTP_200_OK)
-            
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
-        except Exception as e:
-            return Response({
-                'error': f'Failed to update job: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(JobSerializer(updated_job).data)
+            return Response(serializer.errors, status=400)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
 
+class DeleteJobView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-class JobDeleteView(APIView):
-    """
-    DELETE /jobs/<id>/ - Delete job posting (auth required, owner only)
-    """
-    permission_classes = [IsAuthenticated]
-    
-    def delete(self, request, id):
+    def delete(self, request, job_id):
         try:
-            job = get_object_or_404(Job, id=id)
-            
-            # Check if user is the job owner
-            if not (hasattr(request.user, 'employer_profile') and 
-                    request.user.employer_profile == job.employer):
-                return Response({
-                    'error': 'You can only delete your own job postings'
-                }, status=status.HTTP_403_FORBIDDEN)
-            
-            # Soft delete by changing status
-            job.status = 'cancelled'
-            job.save()
-            
-            return Response({
-                'message': 'Job deleted successfully',
-                'job_id': str(job.id)
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'error': f'Failed to delete job: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            job = Job.objects.get(pk=job_id)
+            job.delete()
+            return Response({"message": "Job deleted successfully"}, status=204)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
 
+class JobSkillsView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id):
+        try:
+            job = Job.objects.get(pk=job_id)
+            job_skills = job.job_skills.all()
+            serializer = JobSkillSerializer(job_skills, many=True)
+            return Response(serializer.data)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+class UpdateJobStatusView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, job_id):
+        try:
+            job = Job.objects.get(pk=job_id)
+            status = request.data.get('status')
+            if status not in [choice[0] for choice in Job.Status.choices]:
+                return Response({"error": "Invalid status"}, status=400)
+            job.status = status
+            job.save()
+            return Response(JobSerializer(job).data)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+
+class JobsByEmployerView(views.APIView):
+        permission_classes = [permissions.IsAuthenticated]
+
+        def get(self, request):
+            employer_id = request.query_params.get('employer_id')
+            if not employer_id:
+                return Response({"error": "Employer ID is required"}, status=400)
+            try:
+                jobs = Job.objects.filter(employer__id=employer_id)
+                serializer = JobSerializer(jobs, many=True)
+                return Response(serializer.data)
+            except Job.DoesNotExist:
+                return Response({"error": "No jobs found for the given employer"}, status=404)
+        
+class ListJobsByCategoryView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, category_id):
+        try:
+            category = JobCategory.objects.get(pk=category_id)
+            jobs = category.jobs.all()
+            serializer = JobSerializer(jobs, many=True)
+            return Response(serializer.data)
+        except JobCategory.DoesNotExist:
+            return Response({"error": "Category not found"}, status=404)
+
+class ListJobsByFilterView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        filters = {}
+        for key in ['job_type', 'urgency_level', 'payment_type', 'status', 'visibility']:
+            value = request.query_params.get(key)
+            if value:
+                filters[key] = value
+        jobs = Job.objects.filter(**filters)
+        serializer = JobSerializer(jobs, many=True)
+        return Response(serializer.data)
+    
+#job skills endpoints
+class JobSkillsListView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        job_skills = JobSkill.objects.all()
+        serializer = JobSkillSerializer(job_skills, many=True)
+        return Response(serializer.data)
+    
+class JobSkillDetailView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, skill_id):
+        try:
+            job_skill = JobSkill.objects.get(pk=skill_id)
+            serializer = JobSkillSerializer(job_skill)
+            return Response(serializer.data)
+        except JobSkill.DoesNotExist:
+            return Response({"error": "Job skill not found"}, status=404)
+        
+class CreateJobSkillView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = JobSkillSerializer(data=request.data)
+        if serializer.is_valid():
+            job_skill = serializer.save()
+            return Response(JobSkillSerializer(job_skill).data, status=201)
+        return Response(serializer.errors, status=400)
+    
+class UpdateJobSkillView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request, skill_id):
+        try:
+            job_skill = JobSkill.objects.get(pk=skill_id)
+            serializer = JobSkillSerializer(job_skill, data=request.data)
+            if serializer.is_valid():
+                updated_job_skill = serializer.save()
+                return Response(JobSkillSerializer(updated_job_skill).data)
+            return Response(serializer.errors, status=400)
+        except JobSkill.DoesNotExist:
+            return Response({"error": "Job skill not found"}, status=404)
+        
+class DeleteJobSkillView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, skill_id):
+        try:
+            job_skill = JobSkill.objects.get(pk=skill_id)
+            job_skill.delete()
+            return Response({"message": "Job skill deleted successfully"}, status=204)
+        except JobSkill.DoesNotExist:
+            return Response({"error": "Job skill not found"}, status=404)
 
