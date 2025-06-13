@@ -34,10 +34,7 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterUserSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
-
             
-
             with transaction.atomic():
                 user = serializer.save()
                 if user.user_type == 'worker':
