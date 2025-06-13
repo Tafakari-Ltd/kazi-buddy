@@ -24,7 +24,7 @@ urlpatterns = [
     path('api/accounts/', include('accounts.urls')),
 
     path('api/v1/auth/', include('dj_rest_auth.urls')),
-    path("auth/google/login/", LoginPage.as_view(), name="login"),
+    path("auth/google/plogin/", LoginPage.as_view(), name="login"),
 
     re_path(r"^api/v1/auth/accounts/", include("allauth.urls")),
 
