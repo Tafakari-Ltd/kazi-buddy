@@ -5,7 +5,7 @@ databases:
 
 services:
   - type: web
-    name: tafakari-backend
+    name: kazi-buddy
     env: python
     buildCommand: ./build.sh
     startCommand: gunicorn tafakari.wsgi:application
