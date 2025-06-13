@@ -8,7 +8,7 @@ services:
     name: tafakari
     env: python
     buildCommand: ./build.sh
-    startCommand: gunicorn tafakari.wsgi:application
+    startCommand: gunicorn tafakari.tafakari.wsgi:application
     envVars:
       - key: SECRET_KEY
       - key: DEBUG
