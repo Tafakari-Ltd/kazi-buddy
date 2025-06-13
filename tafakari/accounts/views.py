@@ -20,6 +20,13 @@ import requests
 User = CustomUser
 
 
+
+from django.http import HttpResponse
+
+def home(request):
+    return HttpResponse("Hello, world! This is the home page.")
+
+
 class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterUserSerializer(data=request.data)

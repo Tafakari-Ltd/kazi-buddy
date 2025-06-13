@@ -17,6 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path, re_path
 from accounts.views import  GoogleLoginCallback, GoogleLogin,LoginPage
+from accounts.views import home
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -40,5 +41,6 @@ urlpatterns = [
     path('api/jobs/', include('jobs.urls')),
     # Include the URLs from the skills app
     path('api/skills/', include('skills.urls')),
+    path('',home, name='home'),
 
 ]
