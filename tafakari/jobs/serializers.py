@@ -18,14 +18,16 @@ class JobCategorySerializer(serializers.ModelSerializer):
         return instance
 
 class JobSkillSerializer(serializers.ModelSerializer):
-    skill = serializers.SlugRelatedField(slug_field='name', queryset=Skill.objects.all())
+    # skill = serializers.SlugRelatedField(slug_field='name', queryset=Skill.objects.all())
 
     class Meta:
         model = JobSkill
-        fields = ['id', 'skill', 'is_required', 'experience_level']
+        fields = ['id', 'skill','job', 'is_required', 'experience_level']
+        read_only_fields = ['id', 'job']
         extra_kwargs = {
             'is_required': {'required': False},
-            'experience_level': {'required': False}
+            'experience_level': {'required': False},
+            'skill': {'required': False},
         }
 class JobSerializer(serializers.ModelSerializer):
     category = JobCategorySerializer(read_only=True)
@@ -33,6 +35,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Job
+
         fields = [
             'id', 'employer', 'category', 'title', 'description', 'location',
             'location_text', 'job_type', 'urgency_level', 'budget_min',
@@ -55,5 +58,8 @@ class JobSerializer(serializers.ModelSerializer):
             'estimated_hours': {'required': False},
             'max_applicants': {'required': False},
             'status': {'required': False},
-            'visibility': {'required': False}
+            'visibility': {'required': False},
+            'description': {'required': False},
+            'job_type': {'required': False},
+            'payment_type': {'required': False},
         }

@@ -88,7 +88,7 @@ class JobSkill(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='job_skills')
-    skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE,related_name='skill_jobs')
     is_required = models.BooleanField(default=True)
     experience_level = models.CharField(max_length=20, choices=ExperienceLevel.choices, default=ExperienceLevel.INTERMEDIATE)
     created_at = models.DateTimeField(auto_now_add=True)

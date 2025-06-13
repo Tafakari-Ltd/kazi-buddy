@@ -23,7 +23,7 @@ class CreateEmployerProfileView(APIView):
 class RetrieveEmployerProfileView(APIView):
     def get(self, request, id):
         try:
-            employer = EmployerProfile.objects.get(id=id)
+            employer = EmployerProfile.objects.get(user=id)
             serializer = EmployerProfileSerializer(employer)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except EmployerProfile.DoesNotExist:
