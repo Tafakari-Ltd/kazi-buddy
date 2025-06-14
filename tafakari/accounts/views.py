@@ -360,6 +360,9 @@ class ResetPasswordView(APIView):
         except CustomUser.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         
+        if user.check_password(new_password):
+            return Response({"error": "New password cannot be the same as the old password"}, status=status.HTTP_400_BAD_REQUEST)
+        
         user.set_password(new_password)
         user.save()
         
