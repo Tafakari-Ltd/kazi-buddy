@@ -13,6 +13,9 @@ import requests
 from django.urls import reverse
 from django.views import View
 from django.shortcuts import render
+from workers.models import WorkerProfile
+from employers.models import EmployerProfile
+from django.db import transaction
 import jwt
 import json
 import requests
@@ -24,8 +27,25 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterUserSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
-            
+
+            with transaction.atomic():
+                user = serializer.save()
+                if user.user_type == 'worker':
+                    try:
+                        WorkerProfile.objects.create(user=user)
+                    except Exception as e:
+                        # Handle any errors during profile creation
+                        print(f"Error creating worker profile: {str(e)}")
+                        return Response({"error": "Failed to create worker profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                elif user.user_type == 'employer':
+                    try:
+                        EmployerProfile.objects.create(user=user)
+                    except Exception as e:
+                        # Handle any errors during profile creation
+                        print(f"Error creating employer profile: {str(e)}")
+                        return Response({"error": "Failed to create employer profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+                        
             # Generate and send verification OTP
             try:
                 otp_code = generate_otp(user, 'registration')
@@ -317,3 +337,11 @@ class PasswordResetView(APIView):
             "message": "Password reset OTP sent to your email",
             "user_id": str(user.id)
         }, status=status.HTTP_200_OK)
+
+class DeleteAllUsersView(APIView):
+    def delete(self, request):
+        try:
+            CustomUser.objects.all().delete()
+            return Response({"message": "All users deleted successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
