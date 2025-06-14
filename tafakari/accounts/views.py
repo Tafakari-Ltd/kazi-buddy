@@ -67,8 +67,8 @@ class LoginView(APIView):
                 return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
             
             tokens = get_tokens_for_user(user)
-            otp_code = generate_otp(user, 'login')
-            send_otp_to_email(user, otp_code, 'login')
+            # otp_code = generate_otp(user, 'login')
+            # send_otp_to_email(user, otp_code, 'login')
             return Response({
                 "message": "Login successful",
                 "user_id": str(user.id),
