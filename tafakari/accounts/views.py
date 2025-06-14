@@ -18,7 +18,6 @@ from django.shortcuts import render
 import jwt
 import json
 import requests
-from django.db import transaction
 
 User = CustomUser
 
@@ -332,6 +331,7 @@ class PasswordResetView(APIView):
             "message": "Password reset OTP sent to your email",
             "user_id": str(user.id)
         }, status=status.HTTP_200_OK)
+
     
 class DeleteAllUsersView(APIView):
     def delete(self, request):
