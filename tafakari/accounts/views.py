@@ -82,6 +82,8 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            if not user.email_verified:
+                return Response({"error": "Email not verified"}, status=status.HTTP_403_FORBIDDEN)
             tokens = get_tokens_for_user(user)
             otp_code = generate_otp(user, 'login')
             send_otp_to_email(user, otp_code, 'login')
@@ -347,3 +349,11 @@ class PasswordResetView(APIView):
             "message": "Password reset OTP sent to your email",
             "user_id": str(user.id)
         }, status=status.HTTP_200_OK)
+    
+class DeleteAllUsersView(APIView):
+    def delete(self, request):
+        try:
+            CustomUser.objects.all().delete()
+            return Response({"message": "All users deleted successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
