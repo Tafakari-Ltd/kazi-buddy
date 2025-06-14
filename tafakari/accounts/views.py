@@ -313,7 +313,7 @@ class VerifyEmailView(APIView):
         return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordResetView(APIView):
+class VerifyPasswordResetEmailView(APIView):
     def post(self, request):
         email = request.data.get('email')
         if not email:
@@ -332,7 +332,40 @@ class PasswordResetView(APIView):
             "user_id": str(user.id)
         }, status=status.HTTP_200_OK)
 
-    
+class VerifyPasswordResetOTPView(APIView):
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        otp_code = request.data.get('otp_code')
+        
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if validate_otp(user, otp_code, 'password_reset'):
+            return Response({"message": "OTP verified successfully. You can now reset your password."})
+        
+        return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
+
+class ResetPasswordView(APIView):
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        new_password = request.data.get('new_password')
+        
+        if not new_password:
+            return Response({"error": "New password is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
+
+
 class DeleteAllUsersView(APIView):
     def delete(self, request):
         try:
