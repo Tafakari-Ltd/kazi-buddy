@@ -72,6 +72,10 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            
+            if not user.email_verified:
+                return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
+            
             tokens = get_tokens_for_user(user)
             otp_code = generate_otp(user, 'login')
             send_otp_to_email(user, otp_code, 'login')
