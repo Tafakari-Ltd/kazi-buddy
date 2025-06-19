@@ -40,5 +40,6 @@ urlpatterns = [
     path('api/jobs/', include('jobs.urls')),
     # Include the URLs from the skills app
     path('api/skills/', include('skills.urls')),
+    path('api/applications/', include('applications.urls')),
 
 ]

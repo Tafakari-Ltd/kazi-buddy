@@ -27,25 +27,8 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterUserSerializer(data=request.data)
         if serializer.is_valid():
-
-            with transaction.atomic():
-                user = serializer.save()
-                if user.user_type == 'worker':
-                    try:
-                        WorkerProfile.objects.create(user=user)
-                    except Exception as e:
-                        # Handle any errors during profile creation
-                        print(f"Error creating worker profile: {str(e)}")
-                        return Response({"error": "Failed to create worker profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                elif user.user_type == 'employer':
-                    try:
-                        EmployerProfile.objects.create(user=user)
-                    except Exception as e:
-                        # Handle any errors during profile creation
-                        print(f"Error creating employer profile: {str(e)}")
-                        return Response({"error": "Failed to create employer profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                        
+            user = serializer.save()
+            
             # Generate and send verification OTP
             try:
                 otp_code = generate_otp(user, 'registration')
@@ -66,7 +49,8 @@ class RegisterView(APIView):
                 },
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+    
+    
 class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
