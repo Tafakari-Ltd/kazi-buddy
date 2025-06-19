@@ -23,4 +23,3 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             # Automatically set the worker from the request context
             validated_data['worker'] = self.context['request'].user.workerprofile
             return super().create(validated_data)
-
