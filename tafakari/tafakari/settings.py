@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'utils',
     'skills',
     'documents',
+    'messaging',
 ]
 
 SITE_ID = 1

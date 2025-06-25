@@ -41,5 +41,6 @@ urlpatterns = [
     # Include the URLs from the skills app
     path('api/skills/', include('skills.urls')),
     path('api/applications/', include('applications.urls')),
+    path('api/messages/', include('messaging.urls')),
 
 ]
