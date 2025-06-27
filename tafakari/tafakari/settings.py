@@ -228,6 +228,9 @@ EMAIL_HOST_USER = os.getenv("DEFAULT_FROM_EMAIL")
 EMAIL_HOST_PASSWORD = os.getenv("DEFAULT_FROM_EMAIL_PASSWORD")
 EMAIL_USE_TLS = True
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer"
