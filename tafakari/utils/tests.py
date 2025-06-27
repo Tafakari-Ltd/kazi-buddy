@@ -1,6 +1,6 @@
 from django.test import TestCase
 from .views import upload_file_to_supabase, get_file_url_from_supabase, delete_file_from_supabase
-
+import os
 
 # Create your tests here.
 class FileUploadTestCase(TestCase):
@@ -17,7 +17,7 @@ class FileUploadTestCase(TestCase):
         print(f"Response from Supabase: {response}")
 
         # Clean up the test file
-        import os
+        
         os.remove('test_feiless.txt')
 
    
