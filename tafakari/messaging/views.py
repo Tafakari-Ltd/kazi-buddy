@@ -11,6 +11,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.views import APIView
 
 from django.views.generic import TemplateView
 
@@ -250,7 +251,7 @@ class DeleteThreadView(generics.DestroyAPIView):
         return Response({"detail": "Thread deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
-class DeleteAllThreadsView(generics.DestroyAPIView):
+class DeleteAllThreadsByUserView(generics.DestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def destroy(self, request, *args, **kwargs):
@@ -265,6 +266,117 @@ class DeleteAllThreadsView(generics.DestroyAPIView):
         threads.delete()
 
         return Response(
-            {"detail": f"{deleted_count} threads deleted successfully."},
+            {
+                "message": f"{deleted_count} threads deleted successfully."
+            },
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+#delete all messages in a thread
+class DeleteAllMessagesInThreadView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        thread_id = self.kwargs.get('thread_id')
+        user = request.user
+
+        # Verify user is in thread
+        try:
+            thread = MessageThread.objects.get(
+                Q(id=thread_id) & (Q(participant_1=user) | Q(participant_2=user))
+            )
+        except MessageThread.DoesNotExist:
+            return Response(
+                {"error": "Thread not found or you do not have permission to delete messages."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Delete all messages in the thread
+        deleted_count = thread.messages.count()
+        thread.messages.all().delete()
+
+        return Response(
+            {
+                "message": f"{deleted_count} messages deleted successfully."
+            },
+            status=status.HTTP_204_NO_CONTENT
+        )
+    
+class DeleteAllMessagesByUserView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+
+        # Delete all messages for the user
+        deleted_count = Message.objects.filter(sender=user).delete()[0]
+
+        return Response(
+            {
+                "message": f"{deleted_count} messages deleted successfully."
+            },
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+class StartThreadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        participant_id = request.data.get('participant_id')
+
+        user = CustomUser.objects.filter(id=participant_id).first()
+        if not user:
+            return Response(
+                {"error": "Participant not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        # Your logic to create empty thread
+        thread = MessageThread.objects.create(
+            participant_1=request.user,
+            participant_2=user,
+            job=None,  # Assuming job is optional, set to None or provide a valid Job
+            assignment=None  # Assuming assignment is optional, set to None or provide a valid Assignment
+        )
+        return Response({
+            'id': thread.id,
+            'other_participant': {
+                'id': thread.participant_2.id,
+                'full_name': thread.participant_2.full_name
+            }
+        })
+
+#delete everything in all threads
+class DeleteAllMessagesView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        # Delete all messages in all threads (no filtering)
+        deleted_count = Message.objects.all().delete()[0]
+
+        return Response(
+            {
+                "message": f"{deleted_count} messages deleted successfully."
+            },
+            status=status.HTTP_204_NO_CONTENT
+        )
+    
+#delete all threads for testing purposes
+
+class DeleteAllThreadsForTestingView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+
+        # Delete all threads for the user
+        threads = MessageThread.objects.all()  #  delete all threads
+        
+        deleted_count = threads.count()
+        threads.delete()
+
+        return Response(
+            {
+                "message": f"{deleted_count} threads deleted successfully."
+            },
             status=status.HTTP_204_NO_CONTENT
         )
