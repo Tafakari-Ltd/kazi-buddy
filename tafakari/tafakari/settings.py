@@ -30,7 +30,9 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
 
 
 # Application definition
@@ -63,6 +65,8 @@ INSTALLED_APPS = [
     'skills',
     'documents',
     'messaging',
+    'corsheaders',
+    'channels',
 ]
 
 SITE_ID = 1
@@ -76,6 +80,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 
@@ -222,3 +227,11 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = os.getenv("DEFAULT_FROM_EMAIL")
 EMAIL_HOST_PASSWORD = os.getenv("DEFAULT_FROM_EMAIL_PASSWORD")
 EMAIL_USE_TLS = True
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
+
+ASGI_APPLICATION = 'tafakari.asgi.application'

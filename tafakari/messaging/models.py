@@ -3,10 +3,11 @@ from accounts.models import CustomUser
 from django.utils import timezone
 from jobs.models import Job
 from assignments.models import Assignment
+import uuid
 # Create your models here.
 
 class MessageThread(models.Model):
-    id = models.UUIDField(primary_key=True,editable=False)
+    id = models.UUIDField(primary_key=True,editable=False,default=uuid.uuid4)
     STAUS_CHOICES = [
         ('active', 'Active'),
         ('archived', 'Archived'),
@@ -51,7 +52,7 @@ class MessageThread(models.Model):
         unique_together = ('participant_1', 'participant_2', 'job')
 
 class Message(models.Model):
-    id = models.UUIDField(primary_key=True, editable=False)
+    id = models.UUIDField(primary_key=True, editable=False,default=uuid.uuid4)
     MESSAGE_TYPE_CHOICES = [
         ('text', 'Text'),
         ('image', 'Image'),

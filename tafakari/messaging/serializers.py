@@ -22,7 +22,12 @@ class ThreadSerializer(serializers.ModelSerializer):
         fields = ['id','other_participant', 'last_message', 'last_message_at','unread_count', 'created_at', 'updated_at']
 
     def get_other_participant(self, obj):
-        current_user = self.context['request'].user
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user'):
+            return None
+        current_user = request.user
+        if current_user not in [obj.participant_1, obj.participant_2]:
+            return None
         other = obj.participant_1 if obj.participant_2 == current_user else obj.participant_2
         return UserSerializer(other).data
     
@@ -33,5 +38,8 @@ class ThreadSerializer(serializers.ModelSerializer):
         return None
     
     def get_unread_count(self, obj):
-        current_user = self.context['request'].user
-        return obj.messages.filter(is_read=False, sender=current_user).count()
+        request = self.context.get('request')
+        if not request:
+            return None
+        current_user = request.user
+        return obj.messages.filter(is_read=False).exclude(sender=current_user).count()

@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Messaging App</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #4cc9f0;
+            --danger: #f72585;
+            --border: #dee2e6;
+            --received-bg: #ffffff;
+            --sent-bg: #4361ee;
+            --received-text: #212529;
+            --sent-text: #ffffff;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f0f2f5;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        
+        .messaging-app {
+            display: flex;
+            max-width: 1200px;
+            height: 90vh;
+            margin: 20px auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        /* Thread List Styles */
+        .thread-list {
+            width: 30%;
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            background: var(--light);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .thread-list-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .thread-list-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .thread-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            background: white;
+        }
+        
+        .thread-item:hover {
+            background: #f1f3f5;
+        }
+        
+        .thread-item.active {
+            background: #e7f3ff;
+            border-left: 3px solid var(--primary);
+        }
+        
+        .thread-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--success);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .thread-info {
+            flex: 1;
+            overflow: hidden;
+            min-width: 0;
+        }
+        
+        .thread-name {
+            font-weight: 600;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .thread-preview {
+            color: #6c757d;
+            font-size: 0.85em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .thread-meta {
+            text-align: right;
+            font-size: 0.75em;
+            color: #6c757d;
+            margin-left: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        
+        .badge {
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+            margin-top: 3px;
+        }
+        
+        /* Chat Area Styles */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+        }
+        
+        .chat-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f5f7fa;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" opacity="0.03"><rect fill="none" stroke="black" stroke-width="2" x="25" y="25" width="50" height="50"/></svg>');
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .message {
+            max-width: 75%;
+            margin-bottom: 15px;
+            position: relative;
+            align-self: flex-start;
+        }
+        
+        .message.sent {
+            align-self: flex-end;
+        }
+        
+        .message-bubble {
+            padding: 10px 15px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .message.sent .message-bubble {
+            background: var(--sent-bg);
+            color: var(--sent-text);
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.received .message-bubble {
+            background: var(--received-bg);
+            color: var(--received-text);
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        
+        .message-text {
+            white-space: pre-wrap;
+        }
+        
+        .message-time {
+            font-size: 0.7em;
+            opacity: 0.8;
+            margin-top: 5px;
+            text-align: right;
+            color: inherit;
+        }
+
+        .message-sender {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-bottom: 3px;
+            margin-left: 5px;
+            font-weight: 500;
+        }
+        
+        .message-status {
+            font-size: 0.6em;
+            margin-left: 5px;
+            opacity: 0.7;
+        }
+        
+        .send-message-form {
+            padding: 15px;
+            border-top: 1px solid var(--border);
+            background: white;
+            position: sticky;
+            bottom: 0;
+        }
+        
+        .message-input-container {
+            display: flex;
+            align-items: flex-end;
+        }
+        
+        #message-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            outline: none;
+            resize: none;
+            height: 46px;
+            max-height: 120px;
+            font-size: 0.95em;
+        }
+        
+        #send-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            margin-left: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        
+        #send-button:hover {
+            background: #3a56d4;
+        }
+        
+        #send-button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        /* Typing indicator (optional) */
+        .typing-indicator {
+            display: flex;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            align-self: flex-start;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #9b9b9b;
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: typingAnimation 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typingAnimation {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); }
+        }
+        
+        /* Loading & Empty States */
+        .loading, .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .messaging-app {
+                flex-direction: column;
+                height: 100vh;
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .thread-list, .chat-area {
+                width: 100%;
+            }
+            
+            .thread-list {
+                height: 40vh;
+            }
+            
+            .chat-area {
+                height: 60vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="messaging-app">
+        <!-- Thread List Sidebar -->
+        <div class="thread-list">
+            <div class="thread-list-header">
+                <h2>Conversations</h2>
+                <p>Logged in as: <span id="logged-in-user">Loading...</span></p>
+            </div>
+            <div class="thread-list-content" id="threads-container">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading conversations...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Chat Area -->
+        <div class="chat-area">
+            <div class="chat-header">
+                <h3 id="chat-title">Select a conversation</h3>
+            </div>
+            
+            <div class="messages-container" id="messages-container">
+                <div class="empty-state">
+                    <p>Select a conversation from the list to view messages</p>
+                </div>
+            </div>
+            
+            <div class="send-message-form" style="display: none;" id="send-form">
+                <div class="message-input-container">
+                    <textarea 
+                        id="message-input" 
+                        placeholder="Type your message..." 
+                        rows="1"
+                    ></textarea>
+                    <button id="send-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:8000/api/messages';
+        const WS_BASE = 'ws://localhost:8000/ws';
+        const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUxMDExNzAyLCJpYXQiOjE3NTA5MjUzMDIsImp0aSI6IjIyMjY4NGNjMTFiNzRjNDg4MmI1OTQxOTA0NzJkMWIxIiwidXNlcl9pZCI6ImQyODhkN2Q2LTlmMGItNGMwYy04NGI5LWEyMDhlYTQ0ODIzMiIsInVzZXJfdHlwZSI6IndvcmtlciJ9.yKznb3r0uMwly3YqQX8-6QTUd2nyi_WbdjWjMpgceeA';
+        
+        // DOM Elements
+        const threadsContainer = document.getElementById('threads-container');
+        const messagesContainer = document.getElementById('messages-container');
+        const chatTitle = document.getElementById('chat-title');
+        const sendForm = document.getElementById('send-form');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        
+        // Global state
+        let currentUser = null;
+        let activeThread = null;
+        let wsConnection = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchCurrentUser();
+            loadThreads();
+            setupEventListeners();
+        });
+        
+        // Event Listeners
+        function setupEventListeners() {
+            sendButton.addEventListener('click', sendMessage);
+            
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+                // Optional: Add typing indicator logic here
+            });
+            
+            // Auto-resize textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (Math.min(this.scrollHeight, 120)) + 'px';
+            });
+            
+            // Handle window resize
+            window.addEventListener('resize', debounce(() => {
+                if (messagesContainer.scrollHeight) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            }, 200));
+        }
+        
+        // API Functions
+        async function fetchCurrentUser() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/accounts/me/', {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch user details');
+
+                currentUser = await response.json();
+                document.getElementById('logged-in-user').textContent = currentUser.full_name || 'User';
+            } catch (error) {
+                console.error('Error fetching current user:', error);
+                document.getElementById('logged-in-user').textContent = 'Unknown User';
+            }
+        }
+        
+        async function loadThreads() {
+            try {
+                const response = await fetch(`${API_BASE}/all/`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const threads = await response.json();
+                renderThreads(threads);
+            } catch (error) {
+                console.error('Failed to load threads:', error);
+                threadsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <p>Error loading conversations. Please refresh.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function loadMessages(threadId) {
+            try {
+                messagesContainer.innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading messages...</p>
+                    </div>
+                `;
+                
+                const response = await fetch(`${API_BASE}/thread/${threadId}/`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const messages = await response.json();
+                renderMessages(messages);
+                
+                // Connect to WebSocket for real-time updates
+                setupWebSocket(threadId);
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+                messagesContainer.innerHTML = `
+                    <div class="empty-state">
+                        <p>Error loading messages. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text || !activeThread) return;
+            
+            // Disable send button during request
+            sendButton.disabled = true;
+            
+            // Optimistic UI update
+            const tempId = `temp-${Date.now()}`;
+            const tempMessage = {
+                id: tempId,
+                sender: currentUser,
+                message_text: text,
+                created_at: new Date().toISOString(),
+                is_read: false,
+                status: 'sending'
+            };
+            
+            addMessageToUI(tempMessage, true);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            
+            try {
+                const response = await fetch(`${API_BASE}/${activeThread.other_participant.id}/send/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    },
+                    body: JSON.stringify({
+                        message_text: text,
+                        thread_id: activeThread.id
+                    })
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const messageData = await response.json();
+                
+                // Replace temp message with real message
+                updateMessageInUI(tempId, messageData);
+                
+            } catch (error) {
+                console.error('Failed to send message:', error);
+                markMessageAsFailed(tempId);
+            } finally {
+                sendButton.disabled = false;
+            }
+        }
+        
+        // WebSocket Functions
+        function setupWebSocket(threadId) {
+            // Close existing connection
+            if (wsConnection) {
+                wsConnection.close();
+                reconnectAttempts = 0;
+            }
+            
+            // Create new connection
+            wsConnection = new WebSocket(`${WS_BASE}/thread/${threadId}/`);
+            
+            wsConnection.onopen = () => {
+                console.log('WebSocket connected');
+                reconnectAttempts = 0;
+            };
+            
+            wsConnection.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                
+                if (data.type === 'chat.message') {
+                    const isSent = data.message.sender.id === currentUser.id;
+                    addMessageToUI(data.message, isSent);
+                }
+            };
+            
+            wsConnection.onclose = (e) => {
+                console.log('WebSocket disconnected:', e.code, e.reason);
+                
+                // Attempt reconnect with exponential backoff
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                    console.log(`Attempting reconnect in ${delay}ms...`);
+                    
+                    setTimeout(() => {
+                        reconnectAttempts++;
+                        setupWebSocket(threadId);
+                    }, delay);
+                }
+            };
+            
+            wsConnection.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        // Rendering Functions
+        function renderThreads(threads) {
+            if (!threads || threads.length === 0) {
+                threadsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <p>No conversations yet</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            threadsContainer.innerHTML = '';
+            
+            threads.forEach(thread => {
+                const threadElement = document.createElement('div');
+                threadElement.className = 'thread-item';
+                threadElement.dataset.threadId = thread.id;
+                
+                const lastMessageText = thread.last_message?.message_text || 'No messages';
+                const previewText = lastMessageText.length > 30 
+                    ? lastMessageText.substring(0, 30) + '...' 
+                    : lastMessageText;
+                
+                const unreadCount = thread.unread_count > 0 
+                    ? `<div class="badge">${thread.unread_count}</div>` 
+                    : '';
+                
+                threadElement.innerHTML = `
+                    <div class="thread-avatar">${thread.other_participant?.full_name?.charAt(0) || '?'}</div>
+                    <div class="thread-info">
+                        <div class="thread-name">${thread.other_participant?.full_name || 'Unknown User'}</div>
+                        <div class="thread-preview">${previewText}</div>
+                    </div>
+                    <div class="thread-meta">
+                        <div>${formatTime(thread.last_message_at)}</div>
+                        ${unreadCount}
+                    </div>
+                `;
+                
+                threadElement.addEventListener('click', () => {
+                    // Mark as active
+                    document.querySelectorAll('.thread-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    threadElement.classList.add('active');
+                    
+                    // Set active thread
+                    activeThread = thread;
+                    chatTitle.textContent = `Chat with ${thread.other_participant?.full_name || 'User'}`;
+                    
+                    // Load messages
+                    loadMessages(thread.id);
+                    
+                    // Show send form
+                    sendForm.style.display = 'block';
+                });
+                
+                threadsContainer.appendChild(threadElement);
+            });
+        }
+        
+        function renderMessages(messages) {
+            messagesContainer.innerHTML = '';
+            
+            if (!messages || !messages.results || messages.results.length === 0) {
+                messagesContainer.innerHTML = `
+                    <div class="empty-state">
+                        <p>No messages yet. Start the conversation!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            messages.results.forEach(message => {
+                const isSent = message.sender.id === currentUser.id;
+                messagesContainer.appendChild(createMessageElement(message, isSent));
+            });
+            
+            scrollToBottom();
+        }
+        
+        function createMessageElement(message, isSent) {
+            const element = document.createElement('div');
+            element.id = message.id;
+            element.className = `message ${isSent ? 'sent' : 'received'}`;
+            
+            const senderName = isSent ? 'You' : message.sender.full_name;
+            const timeFormatted = formatTime(message.created_at);
+            const statusIndicator = isSent ? getStatusIndicator(message) : '';
+            
+            element.innerHTML = `
+                ${!isSent ? `<div class="message-sender">${senderName}</div>` : ''}
+                <div class="message-bubble">
+                    <div class="message-text">${message.message_text || ''}</div>
+                    <div class="message-time">${timeFormatted}${statusIndicator}</div>
+                </div>
+            `;
+            
+            return element;
+        }
+        
+        function getStatusIndicator(message) {
+            if (message.status === 'sending') return ' <span class="message-status">(sending...)</span>';
+            if (message.status === 'failed') return ' <span class="message-status">(failed)</span>';
+            if (message.status === 'delivered') return ' <span class="message-status">✓</span>';
+            if (message.status === 'read') return ' <span class="message-status">✓✓</span>';
+            return '';
+        }
+        
+        function addMessageToUI(message, isSent) {
+            if (!isSent && activeThread && message.thread !== activeThread.id) return;
+            
+            const element = createMessageElement(message, isSent);
+            messagesContainer.appendChild(element);
+            scrollToBottom();
+        }
+        
+        function updateMessageInUI(oldId, newMessage) {
+            const oldElement = document.getElementById(oldId);
+            if (oldElement) {
+                const isSent = newMessage.sender.id === currentUser.id;
+                const newElement = createMessageElement(newMessage, isSent);
+                oldElement.replaceWith(newElement);
+                scrollToBottom();
+            }
+        }
+        
+        function markMessageAsFailed(messageId) {
+            const messageElement = document.getElementById(messageId);
+            if (messageElement) {
+                const statusElement = messageElement.querySelector('.message-status');
+                if (statusElement) {
+                    statusElement.textContent = ' (failed)';
+                    statusElement.style.color = 'var(--danger)';
+                }
+            }
+        }
+        
+        // Utility Functions
+        function formatTime(dateString) {
+            if (!dateString) return '';
+            
+            const date = new Date(dateString);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function scrollToBottom() {
+            // Small timeout to allow DOM to update
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 50);
+        }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function() {
+                const context = this, args = arguments;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+    </script>
+</body>
+</html>

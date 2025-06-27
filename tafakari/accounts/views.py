@@ -333,3 +333,23 @@ class DeleteAllUsersView(APIView):
             return Response({"message": "All users deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class GetAllUsersView(APIView):
+    def get(self, request):
+        users = CustomUser.objects.all()
+        user_data = []
+        
+        for user in users:
+            user_data.append({
+                "user_id": str(user.id),
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "user_type": user.user_type,
+                "full_name": user.full_name,
+                "profile_photo_url": user.profile_photo_url,
+                "email_verified": user.email_verified,
+                "phone_verified": user.phone_verified,
+            })
+        
+        return Response(user_data, status=status.HTTP_200_OK)
