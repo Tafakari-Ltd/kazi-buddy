@@ -195,3 +195,76 @@ class MessageEditView(generics.UpdateAPIView):
     def get_object(self):
         message_id = self.kwargs.get('message_id')
         return get_object_or_404(Message, id=message_id, sender=self.request.user)
+    
+class MessageDeleteView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        message = self.get_object()
+
+        # Check if user is sender of the message
+        if message.sender != request.user:
+            raise permissions.PermissionDenied("You do not have permission to delete this message.")
+
+        # Delete the message
+        message.delete()
+
+        # Notify the recipient via WebSocket about the deleted message (if channels is configured)
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f"thread_{message.thread.id}",
+                {
+                    "type": "chat.message.delete",
+                    "message_id": message.id
+                }
+            )
+
+        return Response({"detail": "Message deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+    def get_object(self):
+        message_id = self.kwargs.get('message_id')
+        return get_object_or_404(Message, id=message_id, sender=self.request.user)
+    
+class DeleteThreadView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        thread_id = self.kwargs.get('thread_id')
+        user = request.user
+
+        # Verify user is in thread
+        try:
+            thread = MessageThread.objects.get(
+                Q(id=thread_id) & (Q(participant_1=user) | Q(participant_2=user))
+            )
+        except MessageThread.DoesNotExist:
+            return Response(
+                {"error": "Thread not found or you do not have permission to delete it."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Delete the thread
+        thread.delete()
+
+        return Response({"detail": "Thread deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+
+class DeleteAllThreadsView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+
+        # Delete all threads for the user
+        threads = MessageThread.objects.filter(
+            Q(participant_1=user) | Q(participant_2=user)
+        )
+        
+        deleted_count = threads.count()
+        threads.delete()
+
+        return Response(
+            {"detail": f"{deleted_count} threads deleted successfully."},
+            status=status.HTTP_204_NO_CONTENT
+        )
