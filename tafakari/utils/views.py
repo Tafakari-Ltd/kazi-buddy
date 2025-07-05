@@ -79,7 +79,8 @@ def get_supabase_client():
     key = settings.SUPABASE_KEY
     return supabase.create_client(url, key) if url and key else None
 
-def upload_file_to_supabase(file, filename, file_type, bucket_name='tafakari-uploads'):
+
+def upload_file_to_supabase(file_path, filename, file_type, bucket_name='tafakari-uploads'):
     supabase_client = get_supabase_client()
     if not supabase_client:
         raise ValueError("Supabase client is not configured properly.")
@@ -88,18 +89,55 @@ def upload_file_to_supabase(file, filename, file_type, bucket_name='tafakari-upl
     if subfolder not in ['documents', 'audio', 'video', 'images']:
         raise ValueError("Invalid file type. Must be one of: 'documents', 'audio', 'video', 'images'.")
 
-    full_path = f"{subfolder}/{filename}"  # ✅ Don't include bucket name in path
+    full_path = f"{subfolder}/{filename}"  # e.g., images/user123.png
+
+    if file_type == 'images':
+        with open(file_path, 'rb') as file_obj:
+            supabase_client.storage.from_(bucket_name).upload(
+                full_path,
+                file_obj,
+                {"content-type": "image/png", "upsert": False}
+            )
+
+
 
     try:
-        response = supabase_client.storage.from_(bucket_name).upload(
-            full_path, file, file_options={"upsert": False}
-        )
-        return response
+        with open(file_path, 'rb') as file_obj:
+            supabase_client.storage.from_(bucket_name).upload(
+                full_path, file_obj, file_options={"upsert": False}
+            )
     except Exception as e:
         if "The resource already exists" in str(e):
-            # ✅ File already exists — return existing key
-            return full_path
-        raise Exception(f"An error occurred during file upload: {str(e)}")
+            # File already exists — skip upload
+            pass
+        else:
+            raise Exception(f"An error occurred during file upload: {str(e)}")
+
+    # ✅ Return the public URL
+    return supabase_client.storage.from_(bucket_name).get_public_url(full_path)
+
+
+# def upload_file_to_supabase(file, filename, file_type, bucket_name='tafakari-uploads'):
+#     supabase_client = get_supabase_client()
+#     if not supabase_client:
+#         raise ValueError("Supabase client is not configured properly.")
+
+#     subfolder = file_type.lower()
+#     if subfolder not in ['documents', 'audio', 'video', 'images']:
+#         raise ValueError("Invalid file type. Must be one of: 'documents', 'audio', 'video', 'images'.")
+
+#     full_path = f"{subfolder}/{filename}"  # ✅ Don't include bucket name in path
+
+#     try:
+#         response = supabase_client.storage.from_(bucket_name).upload(
+#             full_path, file, file_options={"upsert": False}
+#         )
+#         return response
+#     except Exception as e:
+#         if "The resource already exists" in str(e):
+#             # ✅ File already exists — return existing key
+#             return full_path
+#         raise Exception(f"An error occurred during file upload: {str(e)}")
 
 # def get_file_path_using_public_url(public_url, bucket_name='tafakari-uploads'):
 #     supabase_client = get_supabase_client()

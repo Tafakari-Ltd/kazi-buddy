@@ -19,16 +19,45 @@ from django.db import transaction
 import jwt
 import json
 import requests
+from utils.views import upload_file_to_supabase,get_file_url_from_supabase
 
 User = CustomUser
 
 
 class RegisterView(APIView):
     def post(self, request):
+        # Extract the file from the request
+        profile_pic = request.FILES.get('profile_photo')
+
         serializer = RegisterUserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            
+
+            # Upload the profile picture to Supabase and get the URL
+            if profile_pic:
+                try:
+                    file_name = f"profile_pics/{user.id}_{profile_pic.name}"
+                    # Save the uploaded file temporarily to the filesystem
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                        for chunk in profile_pic.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    
+                    # Upload the file using its temporary path
+                    profile_photo_url = upload_file_to_supabase(temp_file_path, file_name, 'images')
+
+                    
+                    # Clean up the temporary file
+                    import os
+                    os.remove(temp_file_path)
+                    if profile_photo_url:
+                        # profile_photo_url = get_file_url_from_supabase(file_name, 'images')
+                        user.profile_photo_url = profile_photo_url
+                        user.save()
+                except Exception as e:
+                    print(f"Failed to upload profile picture: {str(e)}")
+
             # Generate and send verification OTP
             try:
                 otp_code = generate_otp(user, 'registration')
@@ -46,6 +75,7 @@ class RegisterView(APIView):
                     "email": user.email,
                     "user_type": user.user_type,
                     "full_name": user.full_name,
+                    "profile_photo_url": user.profile_photo_url,
                 },
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -247,6 +277,7 @@ class UpdateUserProfileView(APIView):
             user.phone_number = data.get("phone_number", user.phone_number)
             user.profile_photo_url = data.get("profile_photo_url", user.profile_photo_url)
             
+            print(f"user photo url: {user.profile_photo_url}")
             try:
                 user.save()
                 return Response({
