@@ -15,7 +15,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key-for-dev")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 # Allow all domains on Render, restrict this in production if needed
-ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
+# ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
