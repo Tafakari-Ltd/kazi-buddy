@@ -17,7 +17,6 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path, re_path
 from accounts.views import  GoogleLoginCallback, GoogleLogin,LoginPage
-from accounts.views import home
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,7 +24,7 @@ urlpatterns = [
     path('api/accounts/', include('accounts.urls')),
 
     path('api/v1/auth/', include('dj_rest_auth.urls')),
-    path("auth/google/plogin/", LoginPage.as_view(), name="login"),
+    path("auth/google/login/", LoginPage.as_view(), name="login"),
 
     re_path(r"^api/v1/auth/accounts/", include("allauth.urls")),
 
@@ -41,6 +40,7 @@ urlpatterns = [
     path('api/jobs/', include('jobs.urls')),
     # Include the URLs from the skills app
     path('api/skills/', include('skills.urls')),
-    path('',home, name='home'),
+    path('api/applications/', include('applications.urls')),
+    path('api/messages/', include('messaging.urls')),
 
 ]

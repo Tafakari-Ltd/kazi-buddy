@@ -6,6 +6,10 @@ from django.conf import settings
 from accounts.models import OTPVerification
 from django.utils import timezone
 import random
+import supabase
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 def get_tokens_for_user(user):
@@ -55,9 +59,6 @@ def send_otp_to_email(user, otp_code, otp_type):
     )
 
 
-
-
-
 def validate_otp(user, otp_code, otp_type):
     try:
         otp_record = OTPVerification.objects.get(
@@ -72,3 +73,170 @@ def validate_otp(user, otp_code, otp_type):
         return True
     except OTPVerification.DoesNotExist:
         return False
+    
+
+def get_supabase_client():
+    """Get Supabase client with proper error handling"""
+    url = settings.SUPABASE_URL
+    key = settings.SUPABASE_KEY
+    
+    if not url or not key:
+        logger.error("Supabase URL or KEY not configured")
+        return None
+    
+    try:
+        client = supabase.create_client(url, key)
+        return client
+    except Exception as e:
+        logger.error(f"Failed to create Supabase client: {str(e)}")
+        return None
+
+def upload_file_to_supabase(file_path, filename, file_type, bucket_name='tafakari'):
+    """Upload file to Supabase with improved error handling"""
+    supabase_client = get_supabase_client()
+    if not supabase_client:
+        raise ValueError("Supabase client is not configured properly.")
+    
+    # Validate file_type
+    subfolder = file_type.lower()
+    if subfolder not in ['documents', 'audio', 'video', 'images']:
+        raise ValueError("Invalid file type. Must be one of: 'documents', 'audio', 'video', 'images'.")
+    
+    full_path = f"{subfolder}/{filename}"
+    
+    try:
+        # Check if file exists first
+        try:
+            existing = supabase_client.storage.from_(bucket_name).list(subfolder, {
+                "limit": 100,
+                "search": filename
+            })
+            # If file exists, optionally skip or update
+            if existing and any(item.get('name') == filename for item in existing):
+                logger.info(f"File {filename} already exists, skipping upload")
+                return supabase_client.storage.from_(bucket_name).get_public_url(full_path)
+        except Exception as list_error:
+            logger.warning(f"Could not check existing files: {str(list_error)}")
+        
+        # Upload the file
+        with open(file_path, 'rb') as file_obj:
+            file_content = file_obj.read()
+            
+            # Determine content type
+            content_type = "text/plain"
+            if file_type == 'images':
+                content_type = "image/png"
+            elif file_type == 'documents':
+                if filename.endswith('.pdf'):
+                    content_type = "application/pdf"
+                elif filename.endswith('.txt'):
+                    content_type = "text/plain"
+            
+            response = supabase_client.storage.from_(bucket_name).upload(
+                path=full_path,
+                file=file_content,
+                file_options={
+                    "content-type": content_type,
+                    "upsert": False
+                }
+            )
+            
+            # Check if response indicates success
+            if hasattr(response, 'error') and response.error:
+                raise Exception(f"Upload failed: {response.error}")
+            
+        # Return public URL
+        public_url = supabase_client.storage.from_(bucket_name).get_public_url(full_path)
+        return public_url
+        
+    except Exception as e:
+        if "already exists" in str(e).lower():
+            # File exists, return its URL
+            return supabase_client.storage.from_(bucket_name).get_public_url(full_path)
+        else:
+            logger.error(f"Upload error: {str(e)}")
+            raise Exception(f"An error occurred during file upload: {str(e)}")
+
+def get_file_url_from_supabase(file_path, file_type, bucket_name='tafakari'):
+    """Get public URL for file from Supabase"""
+    supabase_client = get_supabase_client()
+    if not supabase_client:
+        raise ValueError("Supabase client is not configured properly.")
+    
+    # Validate file_type
+    subfolder = file_type.lower()
+    if subfolder not in ['documents', 'audio', 'video', 'images']:
+        raise ValueError("Invalid file type. Must be one of: 'documents', 'audio', 'video', 'images'.")
+    
+    full_path = f"{subfolder}/{file_path}"
+    
+    try:
+        response = supabase_client.storage.from_(bucket_name).get_public_url(full_path)
+        return response
+    except Exception as e:
+        logger.error(f"Error getting file URL: {str(e)}")
+        raise Exception(f"Failed to get file URL: {str(e)}")
+
+def delete_file_from_supabase(file_name, file_type, bucket_name='tafakari'):
+    """Delete file from Supabase with better error handling"""
+    supabase_client = get_supabase_client()
+    if not supabase_client:
+        raise ValueError("Supabase client is not configured properly.")
+    
+    # Validate file_type
+    subfolder = file_type.lower()
+    if subfolder not in ['documents', 'audio', 'video', 'images']:
+        raise ValueError("Invalid file type. Must be one of: 'documents', 'audio', 'video', 'images'.")
+    
+    full_path = f"{subfolder}/{file_name}"
+    
+    try:
+        # First check if file exists
+        try:
+            files = supabase_client.storage.from_(bucket_name).list(subfolder)
+            file_exists = any(item.get('name') == file_name for item in files if files)
+            
+            if not file_exists:
+                logger.warning(f"File {file_name} not found in {subfolder}")
+                return True  # Consider non-existent file as successfully "deleted"
+        except Exception as list_error:
+            logger.warning(f"Could not list files to check existence: {str(list_error)}")
+        
+        # Attempt deletion
+        response = supabase_client.storage.from_(bucket_name).remove([full_path])
+        
+        # Check response for errors
+        if hasattr(response, 'error') and response.error:
+            raise Exception(f"Delete API error: {response.error}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Delete error: {str(e)}")
+        # Don't raise exception for "file not found" scenarios
+        if "not found" in str(e).lower() or "does not exist" in str(e).lower():
+            return True
+        raise Exception(f"Failed to delete file: {str(e)}")
+
+def get_file_metadata_from_supabase(file_path, file_type, bucket_name='tafakari'):
+    """Get file metadata from Supabase"""
+    supabase_client = get_supabase_client()
+    if not supabase_client:
+        raise ValueError("Supabase client is not configured properly.")
+    
+    subfolder = file_type.lower()
+    if subfolder not in ['documents', 'audio', 'video', 'images']:
+        raise ValueError("Invalid file type. Must be one of: 'documents', 'audio', 'video', 'images'.")
+    
+    full_path = f"{subfolder}/{file_path}"
+    
+    try:
+        response = supabase_client.storage.from_(bucket_name).get_metadata(full_path)
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Failed to get file metadata: {response.error.message}")
+        
+        return getattr(response, "data", response)
+    except Exception as e:
+        logger.error(f"Error getting metadata: {str(e)}")
+        raise Exception(f"Failed to get file metadata: {str(e)}")

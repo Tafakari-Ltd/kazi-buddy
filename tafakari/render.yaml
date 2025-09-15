@@ -19,6 +19,9 @@ services:
       - key: DEFAULT_FROM_EMAIL
       - key: DEFAULT_FROM_EMAIL_PASSWORD
       - key: DATABASE_URL
+      - key: SUPABASE_URL
+      - key: SUPABASE_KEY
+
         fromDatabase:
           name: tafakari-db
           property: connectionString

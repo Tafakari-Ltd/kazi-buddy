@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Messaging App</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #4cc9f0;
+            --danger: #f72585;
+            --warning: #ffc107;
+            --border: #dee2e6;
+            --received-bg: #ffffff;
+            --sent-bg: #4361ee;
+            --received-text: #212529;
+            --sent-text: #ffffff;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--dark);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .messaging-app {
+            display: flex;
+            max-width: 1400px;
+            height: 95vh;
+            margin: 2.5vh auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: var(--shadow-hover);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Thread List Styles */
+        .thread-list {
+            width: 350px;
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .thread-list-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .thread-list-header h2 {
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-size: 1.4em;
+        }
+        
+        .user-info {
+            color: #6c757d;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .online-indicator {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .thread-list-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .thread-item {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(222, 226, 230, 0.5);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            background: white;
+            margin: 4px 8px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .thread-item:hover {
+            background: #f1f3f5;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+        
+        .thread-item.active {
+            background: linear-gradient(135deg, #e7f3ff 0%, #cce7ff 100%);
+            border-left: 4px solid var(--primary);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+        
+        .thread-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--success) 0%, var(--primary) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+            font-size: 1.2em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .thread-info {
+            flex: 1;
+            overflow: hidden;
+            min-width: 0;
+        }
+        
+        .thread-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 1.05em;
+        }
+        
+        .thread-preview {
+            color: #6c757d;
+            font-size: 0.9em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .thread-meta {
+            text-align: right;
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-left: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        
+        .badge {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-radius: 50%;
+            min-width: 22px;
+            height: 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75em;
+            margin-top: 4px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Chat Area Styles */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f8f9fa;
+        }
+        
+        .chat-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .chat-header h3 {
+            color: var(--dark);
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+        
+        .messages-container {
+            flex: 1;
+            padding: 25px;
+            overflow-y: auto;
+            background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(67, 97, 238, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(76, 201, 240, 0.03) 0%, transparent 50%);
+            display: flex;
+            flex-direction: column;
+            scroll-behavior: smooth;
+        }
+        
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 3px;
+        }
+        
+        .message {
+            max-width: 70%;
+            margin-bottom: 16px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            animation: messageSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message.sent {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+        
+        .message.received {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+        
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+            box-shadow: var(--shadow);
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .message.sent .message-bubble {
+            background: linear-gradient(135deg, var(--sent-bg) 0%, var(--primary-dark) 100%);
+            color: var(--sent-text);
+            border-bottom-right-radius: 6px;
+        }
+        
+        .message.received .message-bubble {
+            background: var(--received-bg);
+            color: var(--received-text);
+            border-bottom-left-radius: 6px;
+            border: 1px solid rgba(222, 226, 230, 0.6);
+        }
+        
+        .message-text {
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        
+        .message-time {
+            font-size: 0.75em;
+            opacity: 0.8;
+            margin-top: 6px;
+            text-align: right;
+            color: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
+        }
+
+        .message-sender {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-bottom: 4px;
+            margin-left: 6px;
+            font-weight: 500;
+        }
+        
+        .message-status {
+            font-size: 0.9em;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .message-status.sending {
+            color: var(--warning);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .message-status.failed {
+            color: var(--danger);
+        }
+        
+        .message-status.delivered {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .message-status.read {
+            color: var(--success);
+        }
+        
+        .send-message-form {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            background: white;
+            position: sticky;
+            bottom: 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .message-input-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+        }
+        
+        #message-input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid var(--border);
+            border-radius: 25px;
+            outline: none;
+            resize: none;
+            min-height: 50px;
+            max-height: 120px;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+        
+        #message-input:focus {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+        }
+        
+        #send-button {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow);
+        }
+        
+        #send-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        #send-button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        #send-button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            align-self: flex-start;
+            max-width: 70px;
+        }
+        
+        .typing-bubble {
+            background: white;
+            border-radius: 18px;
+            border-bottom-left-radius: 6px;
+            padding: 12px 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #9b9b9b;
+            border-radius: 50%;
+            animation: typingAnimation 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typingAnimation {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-8px); opacity: 1; }
+        }
+        
+        /* Loading & Empty States */
+        .loading, .empty-state {
+            text-align: center;
+            padding: 60px 40px;
+            color: #6c757d;
+        }
+        
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        
+        .empty-state-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--success) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: white;
+            font-size: 2em;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .messaging-app {
+                flex-direction: column;
+                height: 100vh;
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .thread-list {
+                width: 100%;
+                height: 40vh;
+            }
+            
+            .chat-area {
+                height: 60vh;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+        }
+        
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--danger);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: var(--shadow-hover);
+            z-index: 1000;
+            animation: toastSlideIn 0.3s ease;
+        }
+        
+        @keyframes toastSlideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="messaging-app">
+        <!-- Thread List Sidebar -->
+        <div class="thread-list">
+            <div class="thread-list-header">
+                <h2>Messages</h2>
+                <div class="user-info">
+                    <div class="online-indicator"></div>
+                    <span id="logged-in-user">Loading...</span>
+                </div>
+            </div>
+            <div class="thread-list-content" id="threads-container">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading conversations...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Chat Area -->
+        <div class="chat-area">
+            <div class="chat-header">
+                <h3 id="chat-title">Select a conversation to start messaging</h3>
+            </div>
+            
+            <div class="messages-container" id="messages-container">
+                <div class="empty-state">
+                    <div class="empty-state-icon">💬</div>
+                    <p>Select a conversation from the list to view messages</p>
+                </div>
+            </div>
+            
+            <div class="send-message-form" style="display: none;" id="send-form">
+                <div class="message-input-container">
+                    <textarea 
+                        id="message-input" 
+                        placeholder="Type your message..." 
+                        rows="1"
+                    ></textarea>
+                    <button id="send-button">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:8000/api/messages';
+        const WS_BASE = 'ws://localhost:8000/ws';
+        const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUxNzk0MDA5LCJpYXQiOjE3NTE3MDc2MDksImp0aSI6ImRmMDQ0OWIxM2QxNzQ2ZjE5YjE4ZjdlOGNiNWYzYTU3IiwidXNlcl9pZCI6IjE2N2RiNzNmLWQ3ZDItNGQ4ZC05OTQxLWZjMTM1MjgzNTQyNiIsInVzZXJfdHlwZSI6ImVtcGxveWVyIn0.xptAC3sXWNNiFW2bG5BD6JXdwHjr3j6jHkjydnOx2Qc';
+        
+        // DOM Elements
+        const threadsContainer = document.getElementById('threads-container');
+        const messagesContainer = document.getElementById('messages-container');
+        const chatTitle = document.getElementById('chat-title');
+        const sendForm = document.getElementById('send-form');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        
+        // Global state
+        let tempMessageCounter = 0;
+        let processedMessageIds = new Set();
+        let currentUser = null;
+        let activeThread = null;
+        let wsConnection = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchCurrentUser();
+            loadThreads();
+            setupEventListeners();
+        });
+        
+        // Event Listeners
+        function setupEventListeners() {
+            sendButton.addEventListener('click', sendMessage);
+            
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // Auto-resize textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (Math.min(this.scrollHeight, 120)) + 'px';
+            });
+            
+            // Handle window resize
+            window.addEventListener('resize', debounce(() => {
+                if (messagesContainer.scrollHeight) {
+                    scrollToBottom();
+                }
+            }, 200));
+        }
+        
+        // API Functions
+        async function fetchCurrentUser() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/accounts/me/', {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch user details');
+
+                currentUser = await response.json();
+                currentUser.id = currentUser.user_id || currentUser.uuid || currentUser.id;
+                console.log("🔍 DEBUG: Logged in user:", currentUser);
+
+                document.getElementById('logged-in-user').textContent = currentUser.full_name || 'User';
+            } catch (error) {
+                console.error('Error fetching current user:', error);
+                document.getElementById('logged-in-user').textContent = 'Unknown User';
+                showToast('Failed to load user details');
+            }
+        }
+        
+        async function loadThreads() {
+            try {
+                const response = await fetch(`${API_BASE}/all/`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const threads = await response.json();
+                renderThreads(threads);
+            } catch (error) {
+                console.error('Failed to load threads:', error);
+                threadsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <p>Error loading conversations. Please refresh.</p>
+                    </div>
+                `;
+                showToast('Failed to load conversations');
+            }
+        }
+        
+        async function loadMessages(threadId) {
+            try {
+                messagesContainer.innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading messages...</p>
+                    </div>
+                `;
+                
+                const response = await fetch(`${API_BASE}/thread/${threadId}/`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const messages = await response.json();
+                renderMessages(messages);
+                
+                // Connect to WebSocket for real-time updates
+                setupWebSocket(threadId);
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+                messagesContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <p>Error loading messages. Please try again.</p>
+                    </div>
+                `;
+                showToast('Failed to load messages');
+            }
+        }
+        
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            console.log("📝 Sending message:", text);
+
+            if (!text || !activeThread) {
+                console.warn("⚠️ sendMessage called without text or activeThread");
+                return;
+            }
+
+            sendButton.disabled = true;
+
+            tempMessageCounter++;
+            const tempId = `temp-${Date.now()}-${tempMessageCounter}`;
+            const tempMessage = {
+                id: tempId,
+                sender: currentUser,
+                message_text: text,
+                created_at: new Date().toISOString(),
+                is_read: false,
+                status: 'sending'
+            };
+
+            console.log("🔍 DEBUG: Adding temp message:", tempMessage);
+            addMessageToUI(tempMessage, true);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            try {
+                const url = `${API_BASE}/${activeThread.other_participant.id}/send/`;
+                console.log("📤 Sending to URL:", url);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    },
+                    body: JSON.stringify({
+                        message_text: text,
+                        thread_id: activeThread.id
+                    })
+                });
+
+                console.log("🔍 DEBUG: sendMessage response status:", response.status);
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const responseData = await response.json();
+                console.log("✅ Message sent. Response:", responseData);
+
+                const messageData = responseData.data;
+                processedMessageIds.add(messageData.id);
+                activeThread.last_message = messageData;
+                activeThread.last_message_at = messageData.created_at;
+                updateMessageInUI(tempId, messageData);
+
+            } catch (error) {
+                console.error('❌ Failed to send message:', error);
+                markMessageAsFailed(tempId);
+                showToast('Failed to send message');
+            } finally {
+                sendButton.disabled = false;
+            }
+        }
+
+        
+        // WebSocket Functions
+        function setupWebSocket(threadId) {
+            console.log("🔍 DEBUG: Setting up WebSocket for thread:", threadId);
+
+            if (wsConnection) {
+                console.log("🔍 DEBUG: Closing existing WebSocket connection...");
+                wsConnection.close();
+                reconnectAttempts = 0;
+            }
+
+            const wsUrl = `${WS_BASE}/thread/${threadId}/?token=${AUTH_TOKEN}`;
+            console.log("🔍 DEBUG: Connecting to WebSocket at:", wsUrl);
+            wsConnection = new WebSocket(wsUrl);
+
+            wsConnection.onopen = () => {
+                console.log("✅ WebSocket connected to:", wsUrl);
+                reconnectAttempts = 0;
+            };
+
+            wsConnection.onmessage = (e) => {
+                console.log("DEBUG: WebSocket message received:", e.data);
+
+                try {
+                    const data = JSON.parse(e.data);
+                    console.log("DEBUG: Parsed message:", data);
+
+                    if (data.type === 'chat.message') {
+                        console.log("DEBUG: chat.message type received");
+
+                        if (processedMessageIds.has(data.message.id)) {
+                            console.log("Skipping already processed message:", data.message.id);
+                            return;
+                        }
+
+                        processedMessageIds.add(data.message.id);
+                        const isSent = data.message.sender.id === currentUser.id;
+                        console.log("DEBUG: Message isSent =", isSent);
+                        addMessageToUI(data.message, isSent);
+                    }
+                } catch (err) {
+                    console.error("WebSocket message parsing error:", err);
+                }
+            };
+
+            wsConnection.onclose = (e) => {
+                console.warn(`WebSocket disconnected (code: ${e.code}, reason: ${e.reason})`);
+
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                    console.log(`Reconnecting in ${delay}ms...`);
+
+                    setTimeout(() => {
+                        reconnectAttempts++;
+                        setupWebSocket(threadId);
+                    }, delay);
+                } else {
+                    showToast('Connection lost. Please refresh the page.');
+                }
+            };
+
+            wsConnection.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+            };
+       }
+
+        
+        // Rendering Functions
+        function renderThreads(threads) {
+            if (!threads || threads.length === 0) {
+                threadsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <p>No conversations yet</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            threadsContainer.innerHTML = '';
+            
+            threads.forEach(thread => {
+                const threadElement = document.createElement('div');
+                threadElement.className = 'thread-item';
+                threadElement.dataset.threadId = thread.id;
+                
+                const lastMessageText = thread.last_message?.message_text || 'No messages';
+                const previewText = lastMessageText.length > 35 
+                    ? lastMessageText.substring(0, 35) + '...' 
+                    : lastMessageText;
+                
+                const unreadCount = thread.unread_count > 0 
+                    ? `<div class="badge">${thread.unread_count > 99 ? '99+' : thread.unread_count}</div>` 
+                    : '';
+                
+                const participantName = thread.other_participant?.full_name || 'Unknown User';
+                const avatarLetter = participantName.charAt(0).toUpperCase();
+                
+                threadElement.innerHTML = `
+                    <div class="thread-avatar">${avatarLetter}</div>
+                    <div class="thread-info">
+                        <div class="thread-name">${participantName}</div>
+                        <div class="thread-preview">${previewText}</div>
+                    </div>
+                    <div class="thread-meta">
+                        <div>${formatTime(thread.last_message_at)}</div>
+                        ${unreadCount}
+                    </div>
+                `;
+                
+                threadElement.addEventListener('click', () => {
+                    // Mark as active
+                    document.querySelectorAll('.thread-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    threadElement.classList.add('active');
+                    
+                    // Set active thread
+                    activeThread = thread;
+                    chatTitle.textContent = participantName;
+                    
+                    // Clear processed messages for new thread
+                    processedMessageIds.clear();
+                    
+                    // Load messages
+                    loadMessages(thread.id);
+                    
+                    // Show send form
+                    sendForm.style.display = 'block';
+                });
+                
+                threadsContainer.appendChild(threadElement);
+            });
+        }
+        
+        function renderMessages(messages) {
+            console.log("DEBUG: Rendering messages:", messages);
+            messagesContainer.innerHTML = '';
+
+            if (!messages || !messages.results || messages.results.length === 0) {
+                messagesContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <p>No messages yet. Start the conversation!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            messages.results.forEach(message => {
+                console.log(`DEBUG: Message ID: ${message.id}, Sender ID: ${message.sender.id}, Current User ID: ${currentUser.id}`);
+                const isSent = message.sender.id === currentUser.id;
+                console.log(`Rendering message: ${message.id} (isSent: ${isSent})`);
+                messagesContainer.appendChild(createMessageElement(message, isSent));
+            });
+
+
+            scrollToBottom();
+        }
+
+        
+        function createMessageElement(message, isSent) {
+            const element = document.createElement('div');
+            element.id = message.id;
+            element.className = `message ${isSent ? 'sent' : 'received'}`;
+            
+            const senderName = isSent ? 'You' : message.sender.full_name;
+            const timeFormatted = formatTime(message.created_at);
+            const statusIndicator = isSent ? getStatusIndicator(message) : '';
+            
+            element.innerHTML = `
+                ${!isSent ? `<div class="message-sender">${senderName}</div>` : ''}
+                <div class="message-bubble">
+                    <div class="message-text">${escapeHtml(message.message_text || '')}</div>
+                    <div class="message-time">
+                        ${timeFormatted}
+                        ${statusIndicator}
+                    </div>
+                </div>
+            `;
+            
+            return element;
+        }
+        
+        function getStatusIndicator(message) {
+            const status = message.status || 'delivered';
+            
+            switch (status) {
+                case 'sending':
+                    return '<span class="message-status sending">⏳</span>';
+                case 'failed':
+                    return '<span class="message-status failed">❌</span>';
+                case 'delivered':
+                    return '<span class="message-status delivered">✓</span>';
+                case 'read':
+                    return '<span class="message-status read">✓✓</span>';
+                default:
+                    return '';
+            }
+        }
+        
+        function addMessageToUI(message, isSent) {
+            console.log("📥 addMessageToUI called with:", message);
+
+            if (!isSent && activeThread && message.thread !== activeThread.id) {
+                console.warn(`⚠️ Message skipped (thread mismatch): msg.thread=${message.thread}, active=${activeThread.id}`);
+                return;
+            }
+
+            if (document.getElementById(message.id)) {
+                console.log("⚠️ Message already exists in DOM, skipping:", message.id);
+                return;
+            }
+
+            const element = createMessageElement(message, isSent);
+            messagesContainer.appendChild(element);
+            scrollToBottom();
+        }
+
+        
+        function updateMessageInUI(tempId, newMessage) {
+            const tempElement = document.getElementById(tempId);
+            if (tempElement) {
+                // Check if we already have the real message
+                const existingMessage = document.getElementById(newMessage.id);
+                if (existingMessage) {
+                    // Real message already exists, just remove temp
+                    tempElement.remove();
+                } else {
+                    // Replace temp with real message
+                    
+                    const isSent = newMessage.sender.id === currentUser.id;
+                    const newElement = createMessageElement(newMessage, isSent);
+                    tempElement.replaceWith(newElement);
+                    scrollToBottom();
+                }
+            }
+        }
+        
+        function markMessageAsFailed(messageId) {
+            const messageElement = document.getElementById(messageId);
+            if (messageElement) {
+                const statusElement = messageElement.querySelector('.message-status');
+                if (statusElement) {
+                    statusElement.innerHTML = '❌';
+                    statusElement.className = 'message-status failed';
+                }
+            }
+        }
+        
+        // Utility Functions
+        function formatTime(dateString) {
+            if (!dateString) return '';
+            
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else if (diffDays === 1) {
+                return 'Yesterday';
+            } else if (diffDays < 7) {
+                return date.toLocaleDateString([], { weekday: 'short' });
+            } else {
+                return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            }
+        }
+        
+        function scrollToBottom() {
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 50);
+        }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function() {
+                const context = this, args = arguments;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+        
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+        
+        function showToast(message, type = 'error') {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            
+            if (type === 'success') {
+                toast.style.background = 'var(--success)';
+            } else if (type === 'warning') {
+                toast.style.background = 'var(--warning)';
+            }
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+        
+        // Periodic cleanup for old processed message IDs
+        setInterval(() => {
+            if (processedMessageIds.size > 1000) {
+                const idsArray = Array.from(processedMessageIds);
+                processedMessageIds.clear();
+                // Keep only the last 500 IDs
+                idsArray.slice(-500).forEach(id => processedMessageIds.add(id));
+            }
+        }, 60000); // Every minute
+        
+        // Handle visibility change to reconnect WebSocket if needed
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && activeThread && (!wsConnection || wsConnection.readyState !== WebSocket.OPEN)) {
+                setupWebSocket(activeThread.id);
+            }
+        });
+    </script>
+</body>
+</html>
