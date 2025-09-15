@@ -56,6 +56,8 @@ class UpdateWorkerProfileView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+
 
 class ListWorkerProfilesView(APIView):
     def get(self, request):
@@ -89,3 +91,5 @@ class ListWorkerProfilesView(APIView):
 
         serializer = WorkerProfileSerializer(worker_profiles, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    

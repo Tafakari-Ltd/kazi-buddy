@@ -4,3 +4,4 @@
 *.pyo
 *migrations/
 *.sqlite3
+tafakarienv/
