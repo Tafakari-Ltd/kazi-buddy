@@ -4,3 +4,4 @@
 *.pyo
 virtual/
 db.sqlite3
+tafakarienv/
