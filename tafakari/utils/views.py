@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
 from django.core.mail import send_mail
 from django.utils.timezone import now
 from django.conf import settings
@@ -20,6 +20,23 @@ def get_tokens_for_user(user):
         'refresh': str(refresh),
         'access': str(refresh.access_token),
     }
+
+
+def get_userType_fromToken(token):
+    try:
+        # Try decoding as Access token
+        try:
+            access = AccessToken(token)
+            return access.get('user_type', None)
+            
+        except Exception:
+            # If not access, fallback to refresh
+            refresh = RefreshToken(token)
+            return refresh.get('user_type', None)
+    except Exception as e:
+        logger.error(f"Error decoding token: {str(e)}")
+        return None
+
 
 def generate_otp(user, otp_type, expiration_minutes=5):
     otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
