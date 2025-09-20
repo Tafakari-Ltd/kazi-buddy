@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser
 from .serializers import RegisterUserSerializer, LoginSerializer
-from utils.views import get_tokens_for_user, send_otp_to_email,generate_otp,validate_otp
+from utils.views import get_tokens_for_user, send_otp_to_email,generate_otp,validate_otp,get_userType_fromToken
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
@@ -91,11 +91,13 @@ class LoginView(APIView):
                 return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
             
             tokens = get_tokens_for_user(user)
+            user_type = get_userType_fromToken(tokens['access'])
             otp_code = generate_otp(user, 'login')
             send_otp_to_email(user, otp_code, 'login')
             return Response({
                 "message": "Login successful",
                 "user_id": str(user.id),
+                "user_type": user_type,
                 "tokens": tokens
             })
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
