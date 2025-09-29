@@ -20,6 +20,7 @@ import jwt
 import json
 import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
+from .custom_error import error_response
 
 User = CustomUser
 
@@ -78,7 +79,12 @@ class RegisterView(APIView):
                     "profile_photo_url": user.profile_photo_url,
                 },
             }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return error_response(
+            message="error during register",
+            errors=serializer.errors,
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
     
     
 class LoginView(APIView):
@@ -100,7 +106,12 @@ class LoginView(APIView):
                 "user_type": user_type,
                 "tokens": tokens
             })
-        return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        # return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        return error_response(
+            message="error during login",
+            errors=serializer.errors,
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
@@ -251,25 +262,56 @@ class LoginPage(View):
 
 class UserProfileView(APIView):
     def get(self, request):
-        if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            if not request.user.is_authenticated:
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Authentication required",
+                        "stack": {},
+                        "error": {
+                            "statusCode": status.HTTP_401_UNAUTHORIZED,
+                            "status": "error"
+                        }
+                    },
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            
+            user = request.user
+            return Response({
+                "user_id": str(user.id),
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "user_type": user.user_type,
+                "full_name": user.full_name,
+                "profile_photo_url": user.profile_photo_url,
+                "email_verified": user.email_verified,
+                "phone_verified": user.phone_verified,
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(
+                message="Error retrieving user profile",
+                errors={"error": str(e)},
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
         
-        user = request.user
-        return Response({
-            "user_id": str(user.id),
-            "email": user.email,
-            "phone_number": user.phone_number,
-            "user_type": user.user_type,
-            "full_name": user.full_name,
-            "profile_photo_url": user.profile_photo_url,
-            "email_verified": user.email_verified,
-            "phone_verified": user.phone_verified,
-        }, status=status.HTTP_200_OK)
-    
+
 class UpdateUserProfileView(APIView):
         def put(self, request):
             if not request.user.is_authenticated:
-                return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+                # return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Error updating user profile",
+                        "stack": {"error": "Authentication required"},
+                        "error": {
+                            "statusCode": status.HTTP_401_UNAUTHORIZED,
+                            "status": "error"
+                        }
+                    },
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
             
             user = request.user
             data = request.data
@@ -294,31 +336,54 @@ class UpdateUserProfileView(APIView):
                     "phone_verified": user.phone_verified,
                 }, status=status.HTTP_200_OK)
             except Exception as e:
-                return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                # return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return error_response(
+                    message="Error updating user profile",
+                    errors={"error": str(e)},
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
     
 class LogoutView(APIView):
     def post(self, request):
         if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+            # return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+            return error_response(
+                message="Error during logout",
+                errors={"error": "Authentication required"},
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
         
         # Invalidate the user's tokens
         try:
             RefreshToken.for_user(request.user)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_response(
+                message="Error during logout",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
 class DeleteAccountView(APIView):
-            def delete(self, request):
-                if not request.user.is_authenticated:
-                    return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
-                
-                user = request.user
-                try:
-                    user.delete()
-                    return Response({"message": "Account deleted successfully"}, status=status.HTTP_200_OK)
-                except Exception as e:
-                    return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    def delete(self, request):
+        if not request.user.is_authenticated:
+            return error_response(
+                message="Error deleting account",
+                errors={"error": "Authentication required"},
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        user = request.user
+        try:
+            user.delete()
+            return Response({"message": "Account deleted successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(
+                message="Error deleting account",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
                 
 
 class VerifyEmailView(APIView):
@@ -329,16 +394,31 @@ class VerifyEmailView(APIView):
         
         try:         
             user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        except CustomUser.DoesNotExist as e:
+            return error_response(
+                message="User not found",
+                errors={"error": str(e)},
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
-        if validate_otp(user, otp_code, otp_type):
-            user.email_verified = True
-            user.save()
-            return Response({"message": "Email verified successfully"})
-        
-        return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
-
+        try:
+            if validate_otp(user, otp_code, otp_type):
+                user.email_verified = True
+                user.save()
+                return Response({"message": "Email verified successfully"})
+            else:
+                return error_response(
+                    message="Invalid or expired OTP",
+                    errors={"error": "Invalid or expired OTP"},
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+            
+        except Exception as e:
+            return error_response(
+                message="Error verifying email",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class PasswordResetView(APIView):
     def post(self, request):
@@ -349,7 +429,11 @@ class PasswordResetView(APIView):
         try:
             user = CustomUser.objects.get(email=email)
         except CustomUser.DoesNotExist:
-            return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return error_response(
+                message="User with this email does not exist",
+                errors={"error": "User with this email does not exist"},
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
         otp_code = generate_otp(user, 'password_reset')
         send_otp_to_email(user, otp_code, 'password_reset')
@@ -365,8 +449,11 @@ class DeleteAllUsersView(APIView):
             CustomUser.objects.all().delete()
             return Response({"message": "All users deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            return error_response(
+                message="Error deleting all users",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            ) 
 
 class GetAllUsersView(APIView):
     def get(self, request):
