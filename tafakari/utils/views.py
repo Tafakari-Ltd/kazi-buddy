@@ -8,6 +8,8 @@ from django.utils import timezone
 import random
 import supabase
 import logging
+from django.template.loader import render_to_string
+
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +66,42 @@ def send_otp_to_email(user, otp_code, otp_type):
         'otp_type': otp_type.capitalize(),
     }
 
-    html_message = render(None, f'email_templates/{otp_type}_otp_email.html', context).content.decode()
+    # Use render_to_string instead of render(None, ...)
+    html_message = render_to_string(f'email_templates/{otp_type}_otp_email.html', context)
 
     send_mail(
         subject,
-        '',
-        settings.EMAIL_HOST_USER,
+        '',  # plain text message (optional, leave empty if only HTML)
+        settings.DEFAULT_FROM_EMAIL,  # safer than EMAIL_HOST_USER
         recipient_list,
         fail_silently=False,
         html_message=html_message,
     )
+
+
+# def send_otp_to_email(user, otp_code, otp_type):
+#     subject = f"{otp_type.capitalize()} OTP Verification"
+#     recipient_list = [user.email]
+
+#     if not user.email:
+#         raise ValueError("User does not have an email address.")
+
+#     context = {
+#         'full_name': user.full_name,
+#         'otp_code': otp_code,
+#         'otp_type': otp_type.capitalize(),
+#     }
+
+#     html_message = render(None, f'email_templates/{otp_type}_otp_email.html', context).content.decode()
+
+#     send_mail(
+#         subject,
+#         '',
+#         settings.EMAIL_HOST_USER,
+#         recipient_list,
+#         fail_silently=False,
+#         html_message=html_message,
+#     )
 
 
 def validate_otp(user, otp_code, otp_type):
@@ -90,7 +118,13 @@ def validate_otp(user, otp_code, otp_type):
         return True
     except OTPVerification.DoesNotExist:
         return False
-    
+
+
+
+
+
+
+
 
 def get_supabase_client():
     """Get Supabase client with proper error handling"""
