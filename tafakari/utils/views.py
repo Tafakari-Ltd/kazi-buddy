@@ -54,29 +54,40 @@ def generate_otp(user, otp_type, expiration_minutes=5):
     return otp_code
 
 def send_otp_to_email(user, otp_code, otp_type):
-    subject = f"{otp_type.capitalize()} OTP Verification"
-    recipient_list = [user.email]
+    try:
+        if not user.email:
+            raise ValueError("User does not have an email address.")
 
-    if not user.email:
-        raise ValueError("User does not have an email address.")
+        subject = f"{otp_type.capitalize()} OTP Verification"
+        recipient_list = [user.email]
+        context = {
+            'full_name': getattr(user, 'full_name', user.email),
+            'otp_code': otp_code,
+            'otp_type': otp_type.capitalize(),
+        }
 
-    context = {
-        'full_name': user.full_name,
-        'otp_code': otp_code,
-        'otp_type': otp_type.capitalize(),
-    }
+        try:
+            html_message = render_to_string(f'email_templates/{otp_type}_otp_email.html', context)
+        except Exception as template_error:
+            logger.error(f"Error rendering email template: {str(template_error)}")
+            raise Exception("Failed to render email template.")
 
-    # Use render_to_string instead of render(None, ...)
-    html_message = render_to_string(f'email_templates/{otp_type}_otp_email.html', context)
+        try:
+            send_mail(
+                subject,
+                '',  # plain text message (optional, leave empty if only HTML)
+                settings.DEFAULT_FROM_EMAIL,
+                recipient_list,
+                fail_silently=False,
+                html_message=html_message,
+            )
+        except Exception as mail_error:
+            logger.error(f"Error sending OTP email: {str(mail_error)}")
+            raise Exception("Failed to send OTP email.")
 
-    send_mail(
-        subject,
-        '',  # plain text message (optional, leave empty if only HTML)
-        settings.DEFAULT_FROM_EMAIL,  # safer than EMAIL_HOST_USER
-        recipient_list,
-        fail_silently=False,
-        html_message=html_message,
-    )
+    except Exception as e:
+        logger.error(f"send_otp_to_email error: {str(e)}")
+        raise
 
 
 # def send_otp_to_email(user, otp_code, otp_type):
