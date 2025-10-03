@@ -5,10 +5,12 @@ from django.utils.timezone import now
 from django.conf import settings
 from accounts.models import OTPVerification
 from django.utils import timezone
+from django.template.loader import render_to_string
+from threading import Thread
 import random
 import supabase
 import logging
-from django.template.loader import render_to_string
+
 
 
 logger = logging.getLogger(__name__)
@@ -53,11 +55,76 @@ def generate_otp(user, otp_type, expiration_minutes=5):
     )
     return otp_code
 
-def send_otp_to_email(user, otp_code, otp_type):
-    try:
-        if not user.email:
-            raise ValueError("User does not have an email address.")
+# def send_otp_to_email(user, otp_code, otp_type):
+#     try:
+#         if not user.email:
+#             raise ValueError("User does not have an email address.")
 
+#         subject = f"{otp_type.capitalize()} OTP Verification"
+#         recipient_list = [user.email]
+#         context = {
+#             'full_name': getattr(user, 'full_name', user.email),
+#             'otp_code': otp_code,
+#             'otp_type': otp_type.capitalize(),
+#         }
+
+#         try:
+#             html_message = render_to_string(f'email_templates/{otp_type}_otp_email.html', context)
+#         except Exception as template_error:
+#             logger.error(f"Error rendering email template: {str(template_error)}")
+#             raise Exception("Failed to render email template.")
+
+#         try:
+#             send_mail(
+#                 subject,
+#                 '',  # plain text message (optional, leave empty if only HTML)
+#                 settings.DEFAULT_FROM_EMAIL,
+#                 recipient_list,
+#                 fail_silently=False,
+#                 html_message=html_message,
+#             )
+#         except Exception as mail_error:
+#             logger.error(f"Error sending OTP email: {str(mail_error)}")
+#             raise Exception("Failed to send OTP email.")
+
+#     except Exception as e:
+#         logger.error(f"send_otp_to_email error: {str(e)}")
+#         raise
+
+
+def send_email_async(subject, html_message, recipient_list):
+    """Send email in a separate thread to avoid blocking"""
+    def _send():
+        try:
+            send_mail(
+                subject,
+                '',  # plain text message
+                settings.DEFAULT_FROM_EMAIL,
+                recipient_list,
+                fail_silently=False,
+                html_message=html_message,
+                timeout=10,  # Add timeout to prevent hanging
+            )
+            logger.info(f"Email sent successfully to {recipient_list}")
+        except Exception as e:
+            logger.error(f"Failed to send email: {str(e)}")
+    
+    thread = Thread(target=_send)
+    thread.daemon = True  # Thread will not block app shutdown
+    thread.start()
+
+
+def send_otp_to_email(user, otp_code, otp_type):
+    """
+    Send OTP email asynchronously to avoid blocking the request
+    """
+    try:
+        # Validate user email
+        if not user.email:
+            logger.error(f"User {user.id} does not have an email address")
+            raise ValueError("User does not have an email address.")
+        
+        # Prepare email content
         subject = f"{otp_type.capitalize()} OTP Verification"
         recipient_list = [user.email]
         context = {
@@ -65,55 +132,27 @@ def send_otp_to_email(user, otp_code, otp_type):
             'otp_code': otp_code,
             'otp_type': otp_type.capitalize(),
         }
-
+        
+        # Render email template
         try:
-            html_message = render_to_string(f'email_templates/{otp_type}_otp_email.html', context)
+            html_message = render_to_string(
+                f'email_templates/{otp_type}_otp_email.html', 
+                context
+            )
         except Exception as template_error:
             logger.error(f"Error rendering email template: {str(template_error)}")
             raise Exception("Failed to render email template.")
-
-        try:
-            send_mail(
-                subject,
-                '',  # plain text message (optional, leave empty if only HTML)
-                settings.DEFAULT_FROM_EMAIL,
-                recipient_list,
-                fail_silently=False,
-                html_message=html_message,
-            )
-        except Exception as mail_error:
-            logger.error(f"Error sending OTP email: {str(mail_error)}")
-            raise Exception("Failed to send OTP email.")
-
+        
+        # Send email asynchronously
+        send_email_async(subject, html_message, recipient_list)
+        
+        logger.info(f"OTP email queued for {user.email}")
+        
     except Exception as e:
         logger.error(f"send_otp_to_email error: {str(e)}")
-        raise
-
-
-# def send_otp_to_email(user, otp_code, otp_type):
-#     subject = f"{otp_type.capitalize()} OTP Verification"
-#     recipient_list = [user.email]
-
-#     if not user.email:
-#         raise ValueError("User does not have an email address.")
-
-#     context = {
-#         'full_name': user.full_name,
-#         'otp_code': otp_code,
-#         'otp_type': otp_type.capitalize(),
-#     }
-
-#     html_message = render(None, f'email_templates/{otp_type}_otp_email.html', context).content.decode()
-
-#     send_mail(
-#         subject,
-#         '',
-#         settings.EMAIL_HOST_USER,
-#         recipient_list,
-#         fail_silently=False,
-#         html_message=html_message,
-#     )
-
+        # Don't raise - let the user continue even if email fails
+        # The OTP is still saved in the database
+        pass
 
 def validate_otp(user, otp_code, otp_type):
     try:
