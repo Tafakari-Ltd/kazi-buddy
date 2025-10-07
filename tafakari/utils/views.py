@@ -103,7 +103,7 @@ def send_email_async(subject, html_message, recipient_list):
                 recipient_list,
                 fail_silently=False,
                 html_message=html_message,
-                timeout=10,  # Add timeout to prevent hanging
+                # timeout=20,  # Add timeout to prevent hanging
             )
             logger.info(f"Email sent successfully to {recipient_list}")
         except Exception as e:
