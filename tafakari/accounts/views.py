@@ -473,3 +473,23 @@ class GetAllUsersView(APIView):
             })
         
         return Response(user_data, status=status.HTTP_200_OK)
+
+#delete user by email endpoint for testing purposes 
+class DeleteUserByEmailView(APIView):
+    def delete(self, request, email):
+        try:
+            user = CustomUser.objects.get(email=email)
+            user.delete()
+            return Response({"message": f"User with email {email} deleted successfully"}, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return error_response(
+                message="User not found",
+                errors={"error": f"No user found with email {email}"},
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return error_response(
+                message="Error deleting user",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
