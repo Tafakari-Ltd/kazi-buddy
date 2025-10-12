@@ -8,7 +8,7 @@ from skills.models import Skill
 #Job Categories endpoints
 
 class JobCategoriesListView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         categories = JobCategory.objects.all()
@@ -22,7 +22,7 @@ class JobCategoriesListView(views.APIView):
         )
 
 class JobCategoryDetailView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, category_id):
         try:
@@ -86,7 +86,7 @@ class DeleteJobCategoryView(views.APIView):
             return Response({"error": "Category not found"}, status=404)
 
 class JobsInCategoryView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, category_id):
         try:
@@ -106,7 +106,7 @@ class JobsInCategoryView(views.APIView):
 
 #job endpoints
 class JobListView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         jobs = Job.objects.all()
@@ -121,7 +121,7 @@ class JobListView(views.APIView):
     
 
 class JobDetailView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, job_id):
         try:
@@ -202,7 +202,7 @@ class DeleteJobView(views.APIView):
             return Response({"error": "Job not found"}, status=404)
 
 class JobSkillsView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, job_id):
         try:
@@ -262,7 +262,7 @@ class JobsByEmployerView(views.APIView):
                 return Response({"error": "No jobs found for the given employer"}, status=404)
         
 class ListJobsByCategoryView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, category_id):
         try:
@@ -301,7 +301,7 @@ class JobEmployerView(views.APIView):
             return Response({"error": "Job not found"}, status=404)
 
 class ListJobsByFilterView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         filters = {}
@@ -321,7 +321,7 @@ class ListJobsByFilterView(views.APIView):
     
 #job skills endpoints
 class JobSkillsListView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         job_skills = JobSkill.objects.all()
@@ -334,7 +334,7 @@ class JobSkillsListView(views.APIView):
         )
     
 class JobSkillDetailView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, skill_id):
         try:
