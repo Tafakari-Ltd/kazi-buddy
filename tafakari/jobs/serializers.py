@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Job,JobCategory,JobSkill
 from skills.models import Skill
+from employers.serializers import EmployerProfileSerializer
 
 class JobCategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -32,6 +33,7 @@ class JobSkillSerializer(serializers.ModelSerializer):
 class JobSerializer(serializers.ModelSerializer):
     category = JobCategorySerializer(read_only=True)
     job_skills = JobSkillSerializer(many=True, read_only=True)
+    employer = EmployerProfileSerializer(read_only=True)
 
     class Meta:
         model = Job

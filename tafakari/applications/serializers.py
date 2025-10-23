@@ -1,8 +1,12 @@
 from .models import JobApplication, WorkerInvitation
+from jobs.serializers import JobSerializer
+from workers.serializers import WorkerProfileSerializer
 
 from rest_framework import serializers
 
 class JobApplicationSerializer(serializers.ModelSerializer):
+    job = JobSerializer(read_only=True)
+    worker = WorkerProfileSerializer(read_only=True)
     class Meta:
         model = JobApplication
         fields = '__all__'
