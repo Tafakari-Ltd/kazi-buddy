@@ -93,8 +93,11 @@ class LoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             
-            if not user.email_verified:
+            if not user.email_verified :
                 return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                if not user.is_verified:
+                    return Response({"error": "You are not approved by admin yet. Please wait for approval."}, status=status.HTTP_403_FORBIDDEN)
             
             tokens = get_tokens_for_user(user)
             user_type = get_userType_fromToken(tokens['access'])

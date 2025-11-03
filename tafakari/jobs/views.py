@@ -1,3 +1,4 @@
+from time import timezone
 from .serializers import JobSerializer,JobCategorySerializer,JobSkillSerializer
 from rest_framework import views, permissions
 from .models import Job, JobCategory, JobSkill
@@ -109,7 +110,7 @@ class JobListView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        jobs = Job.objects.all()
+        jobs = Job.objects.filter(admin_approved=True).exclude(expires_at__lt=timezone.now())
         serializer = JobSerializer(jobs, many=True)
         return Response(
             {
