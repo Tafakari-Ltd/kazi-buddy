@@ -110,7 +110,7 @@ class JobListView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        jobs = Job.objects.filter(admin_approved=True).exclude(expires_at__lt=timezone.now())
+        jobs = Job.objects.filter(admin_approved=True)
         serializer = JobSerializer(jobs, many=True)
         return Response(
             {
