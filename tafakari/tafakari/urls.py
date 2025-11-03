@@ -42,5 +42,6 @@ urlpatterns = [
     path('api/skills/', include('skills.urls')),
     path('api/applications/', include('applications.urls')),
     path('api/messages/', include('messaging.urls')),
+    path('api/adminpanel/', include('adminpanel.urls')),
 
 ]
