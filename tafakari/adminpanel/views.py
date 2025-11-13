@@ -162,7 +162,7 @@ class PendingJobsListView(APIView):
     
 class ListPendingUsersView(APIView):
     def get(self, request):
-        users = CustomUser.objects.filter(admin_verified=False)
+        users = CustomUser.objects.filter(is_verified=False)
         user_data = []
         
         for user in users:
