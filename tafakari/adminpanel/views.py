@@ -9,6 +9,7 @@ from jobs.serializers import JobSerializer
 from .serializers import ApproveUserSerializer, UserStatusSerializer
 from rest_framework import status
 from applications.models import JobApplication
+from applications.serializers import JobApplicationSerializer
 
 
 class ApproveUserView(APIView):
@@ -182,67 +183,55 @@ class ListPendingUsersView(APIView):
         return Response(user_data, status=status.HTTP_200_OK)
 
 class UpdateJobApplicationStatusView(APIView):
-            # permission_classes = [permissions.IsAdminUser]
+    # permission_classes = [permissions.IsAdminUser]
 
-            def patch(self, request, application_id):
+    def patch(self, request, application_id):
+        try:
+            application = JobApplication.objects.get(id=application_id)
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Application not found"}, status=status.HTTP_404_NOT_FOUND)
 
-                try:
-                    application = JobApplication.objects.get(id=application_id)
-                except JobApplication.DoesNotExist:
-                    return Response({"error": "Application not found"}, status=status.HTTP_404_NOT_FOUND)
+        new_status = request.data.get("status")
+        if not new_status:
+            return Response({"error": "'status' is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-                new_status = request.data.get("status")
-                if not new_status:
-                    return Response({"error": "'status' is required"}, status=status.HTTP_400_BAD_REQUEST)
+        valid_statuses = [choice[0] for choice in JobApplication.STATUS_CHOICES]
+        if new_status not in valid_statuses:
+            return Response({"error": f"Invalid status. Valid statuses: {valid_statuses}"}, status=status.HTTP_400_BAD_REQUEST)
 
-                valid_statuses = [choice[0] for choice in JobApplication.STATUS_CHOICES]
-                if new_status not in valid_statuses:
-                    return Response({"error": f"Invalid status. Valid statuses: {valid_statuses}"}, status=status.HTTP_400_BAD_REQUEST)
+        if application.status == new_status:
+            return Response(
+                {"message": "Status unchanged", "application": {"id": str(application.id), "status": application.status}},
+                status=status.HTTP_200_OK
+            )
 
-                if application.status == new_status:
-                    return Response(
-                        {"message": "Status unchanged", "application": {"id": str(application.id), "status": application.status}},
-                        status=status.HTTP_200_OK
-                    )
+        # Optional notes that may accompany the status update
+        employer_notes = request.data.get("employer_notes")
+        worker_notes = request.data.get("worker_notes")
 
-                # Optional notes that may accompany the status update
-                employer_notes = request.data.get("employer_notes")
-                worker_notes = request.data.get("worker_notes")
+        application.status = new_status
 
-                application.status = new_status
+        # Set timestamps based on transition
+        if application.status != "pending" and application.reviewed_at is None:
+            application.reviewed_at = timezone.now()
 
-                # Set timestamps based on transition
-                if application.status != "pending" and application.reviewed_at is None:
-                    application.reviewed_at = timezone.now()
+        # Mark responded_at for decisive outcomes
+        if application.status in ("accepted", "rejected", "withdrawn"):
+            application.responded_at = timezone.now()
+        else:
+            application.responded_at = None
 
-                # Mark responded_at for decisive outcomes
-                if application.status in ("accepted", "rejected", "withdrawn"):
-                    application.responded_at = timezone.now()
-                else:
-                    application.responded_at = None
+        if employer_notes is not None:
+            application.employer_notes = employer_notes
+        if worker_notes is not None:
+            application.worker_notes = worker_notes
 
-                if employer_notes is not None:
-                    application.employer_notes = employer_notes
-                if worker_notes is not None:
-                    application.worker_notes = worker_notes
+        application.save()
 
-                application.save()
+        # Use the JobApplicationSerializer for the response representation
+        serializer = JobApplicationSerializer(application, context={"request": request})
 
-                application_data = {
-                    "id": str(application.id),
-                    "job_id": str(application.job.id) if application.job_id is not None else None,
-                    "worker_id": str(application.worker.id) if application.worker_id is not None else None,
-                    "status": application.status,
-                    "employer_notes": application.employer_notes,
-                    "worker_notes": application.worker_notes,
-                    "applied_at": application.applied_at.isoformat() if application.applied_at else None,
-                    "reviewed_at": application.reviewed_at.isoformat() if application.reviewed_at else None,
-                    "responded_at": application.responded_at.isoformat() if application.responded_at else None,
-                    "proposed_rate": str(application.proposed_rate) if getattr(application, "proposed_rate", None) is not None else None,
-                }
-
-                return Response({"message": "Application status updated successfully", "application": application_data}, status=status.HTTP_200_OK)
-
-            # Allow POST as an alias if preferred by clients
-            def post(self, request, application_id):
-                return self.patch(request, application_id)
+        return Response(
+            {"message": "Application status updated successfully", "application": serializer.data},
+            status=status.HTTP_200_OK
+        )
