@@ -13,7 +13,7 @@ class JobApplication(models.Model):
         ('rejected', 'Rejected'),
         ('withdrawn', 'Withdrawn'),
     ]
-
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(Job, on_delete=models.CASCADE)
     worker = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE)

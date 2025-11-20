@@ -219,7 +219,7 @@ class AllJobApplicationListView(APIView):
     """
     View to list all job applications.
     """
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
     serializer_class = JobApplicationSerializer
 
     def get(self, request, *args, **kwargs):
