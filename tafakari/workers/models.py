@@ -1,9 +1,11 @@
 from django.db import models
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 from django.db.models import JSONField
 from skills.models import Skill
 from accounts.models import CustomUser
+from employers.models import EmployerProfile
 import uuid
 # Create your models here.
 # workers/models.py
@@ -44,9 +46,19 @@ class WorkerProfile(models.Model):
         total = len(fields_to_check)
         filled = sum([1 for field in fields_to_check if field not in [None, '', {}]])
         return int((filled / total) * 100) if total else 0
+    
+    def clean(self):
+        if self.user.user_type != "worker":
+            raise ValidationError("Only users with user_type='worker' can have a WorkerProfile.")
+
+        
+        if EmployerProfile.objects.filter(user=self.user).exists():
+            raise ValidationError("User already has an EmployerProfile.")
+
 
     def save(self, *args, **kwargs):
         self.profile_completion_percentage = self.calculate_completion()
+        self.full_clean()
         super().save(*args, **kwargs)
 
 class WorkerSkill(models.Model):
