@@ -2,10 +2,11 @@ from django.db import models
 from django.utils import timezone
 from django.db.models import JSONField
 from django.core.exceptions import ValidationError
-from workers.models import WorkerProfile
+
 from accounts.models import CustomUser
 import uuid
 
+#
 
 class EmployerProfile(models.Model):
     BUSINESS_TYPES = [
@@ -41,6 +42,7 @@ class EmployerProfile(models.Model):
         if self.user.user_type != "employer":
             raise ValidationError("Only users with user_type='employer' can have an EmployerProfile.")
 
+        from workers.models import WorkerProfile
         if WorkerProfile.objects.filter(user=self.user).exists():
             raise ValidationError("User already has a WorkerProfile.")
         

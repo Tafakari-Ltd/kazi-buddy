@@ -5,7 +5,6 @@ from django.core.exceptions import ValidationError
 from django.db.models import JSONField
 from skills.models import Skill
 from accounts.models import CustomUser
-from employers.models import EmployerProfile
 import uuid
 # Create your models here.
 # workers/models.py
@@ -51,7 +50,7 @@ class WorkerProfile(models.Model):
         if self.user.user_type != "worker":
             raise ValidationError("Only users with user_type='worker' can have a WorkerProfile.")
 
-        
+        from employers.models import EmployerProfile
         if EmployerProfile.objects.filter(user=self.user).exists():
             raise ValidationError("User already has an EmployerProfile.")
 
