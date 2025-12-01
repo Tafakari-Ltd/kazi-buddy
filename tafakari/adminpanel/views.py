@@ -10,10 +10,11 @@ from .serializers import ApproveUserSerializer, UserStatusSerializer
 from rest_framework import status
 from applications.models import JobApplication
 from applications.serializers import JobApplicationSerializer
+from rest_framework.permissions import IsAdminUser
 
 
 class ApproveUserView(APIView):
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, user_id):
         try:
@@ -41,7 +42,7 @@ class ApproveUserView(APIView):
         )
     
 class DeactivateUserView(APIView):
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, user_id):
         try:
@@ -70,7 +71,7 @@ class AllJobsListView(APIView):
     List all jobs regardless of approval status.
     Typically restricted to admin users.
     """
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     
     def get(self, request):
         jobs = Job.objects.all().order_by('-created_at')
@@ -90,7 +91,7 @@ class ApproveJobView(APIView):
     Approve a job by setting admin_approved to True.
     Only accessible by admin users.
     """
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     
     def post(self, request, job_id):
         job = get_object_or_404(Job, id=job_id)
@@ -149,7 +150,7 @@ class PendingJobsListView(APIView):
     List all jobs pending approval (admin_approved=False).
     Only accessible by admin users.
     """
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     
     def get(self, request):
         jobs = Job.objects.filter(admin_approved=False).order_by('-created_at')
@@ -164,6 +165,7 @@ class PendingJobsListView(APIView):
         )
     
 class ListPendingUsersView(APIView):
+    permission_classes = [permissions.IsAdminUser]
     def get(self, request):
         users = CustomUser.objects.filter(is_verified=False)
         user_data = []
@@ -183,7 +185,7 @@ class ListPendingUsersView(APIView):
         return Response(user_data, status=status.HTTP_200_OK)
 
 class UpdateJobApplicationStatusView(APIView):
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
 
     def patch(self, request, application_id):
         try:

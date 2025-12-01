@@ -5,11 +5,18 @@ from .models import Job, JobCategory, JobSkill
 from rest_framework.response import Response
 from employers.models import EmployerProfile
 from skills.models import Skill
+from rest_framework.pagination import PageNumberPagination
+
+
+
+class CustomPagination(PageNumberPagination):
+    page_size = 10  
+    page_size_query_param = 'page_size' 
+    max_page_size = 100  # Maximum page size allowed
 
 #Job Categories endpoints
 
 class JobCategoriesListView(views.APIView):
-    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         categories = JobCategory.objects.all()
@@ -108,18 +115,28 @@ class JobsInCategoryView(views.APIView):
 #job endpoints
 class JobListView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
-
+    pagination_class = CustomPagination 
+    
     def get(self, request):
         jobs = Job.objects.filter(admin_approved=True)
-        serializer = JobSerializer(jobs, many=True)
-        return Response(
-            {
-                "message": "Jobs retrieved successfully",
-                "data": serializer.data
-            },
-            status=200
-        )
-    
+        
+        # Create paginator instance
+        paginator = self.pagination_class()
+        
+        # Paginate the queryset
+        paginated_jobs = paginator.paginate_queryset(jobs, request)
+        
+        # Serialize the paginated data
+        serializer = JobSerializer(paginated_jobs, many=True)
+        
+        # Return paginated response
+        return paginator.get_paginated_response({
+            "message": "Jobs retrieved successfully",
+            "data": serializer.data
+        })
+
+
+
 
 class JobDetailView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
