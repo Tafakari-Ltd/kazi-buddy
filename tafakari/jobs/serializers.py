@@ -104,3 +104,16 @@ class JobCreateUpdateSerializer(serializers.ModelSerializer):
                 is_required=skill_data.get('is_required', True),
                 experience_level=skill_data.get('experience_level', 'intermediate')
             )
+
+class FeaturedJobSerializer(serializers.ModelSerializer):
+    """Serializer for featured jobs"""
+    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    
+    class Meta:
+        model = Job
+        fields = [
+            'id', 'title', 'employer_name', 'category_name', 'location_text',
+            'job_type', 'urgency_level', 'budget_min', 'budget_max', 
+            'payment_type', 'created_at'
+        ]

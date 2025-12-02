@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from .models import Job, JobCategory, Skill
 from .serializers import (
-    JobListSerializer, JobDetailSerializer, 
+    FeaturedJobSerializer, JobListSerializer, JobDetailSerializer, 
     JobCreateUpdateSerializer
 )
 
@@ -257,3 +257,27 @@ class JobDeleteView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class FeaturedJobsView(APIView):
+    """
+    GET /jobs/featured/ - List featured jobs
+    """
+    
+    def get(self, request):
+        try:
+            featured_jobs = Job.objects.filter(
+                is_featured=True,
+                status='active',
+                admin_approved=True,
+                visibility='public'
+            ).select_related('employer', 'category').prefetch_related('urgency_level','budget_min')
+            
+            serializer = FeaturedJobSerializer(featured_jobs, many=True)
+            
+            return Response({
+                'featured_jobs': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to fetch featured jobs: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
