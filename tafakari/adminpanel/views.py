@@ -245,7 +245,7 @@ class UpdateJobApplicationStatusView(APIView):
 
 
 class DeleteAllUsersView(APIView):
-    permission_classes = [permissions.IsAdminUser]
+    # permission_classes = [permissions.IsAdminUser]
     def delete(self, request):
         try:
             CustomUser.objects.all().delete()
