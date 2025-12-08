@@ -4,7 +4,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from .models import EmployerProfile
 from .serializers import EmployerProfileSerializer
-from .custom_error import error_response
+from utils.custom_error import error_response
+from utils.custom_pagination import CustomPagination
 
 
 class CreateEmployerProfileView(APIView):
@@ -74,23 +75,3 @@ class UpdateEmployerProfileView(APIView):
             )  
         
          
-class ListEmployerProfilesView(APIView):
-    def get(self, request):
-        company_name = request.GET.get("company_name")
-        location = request.GET.get("location")
-        industry = request.GET.get("industry")
-        business_type = request.GET.get("business_type")
-
-        employers = EmployerProfile.objects.all()
-
-        if company_name:
-            employers = employers.filter(company_name__icontains=company_name)
-        if location:
-            employers = employers.filter(location__icontains=location)
-        if industry:
-            employers = employers.filter(industry__icontains=industry)
-        if business_type:
-            employers = employers.filter(business_type=business_type)
-
-        serializer = EmployerProfileSerializer(employers, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)

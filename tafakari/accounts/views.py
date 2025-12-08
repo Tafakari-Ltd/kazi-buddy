@@ -20,7 +20,7 @@ import jwt
 import json
 import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
-from .custom_error import error_response
+from utils.custom_error import error_response
 
 User = CustomUser
 
@@ -446,53 +446,3 @@ class PasswordResetView(APIView):
             "user_id": str(user.id)
         }, status=status.HTTP_200_OK)
 
-class DeleteAllUsersView(APIView):
-    def delete(self, request):
-        try:
-            CustomUser.objects.all().delete()
-            return Response({"message": "All users deleted successfully"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return error_response(
-                message="Error deleting all users",
-                errors={"error": str(e)},
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            ) 
-
-class GetAllUsersView(APIView):
-    def get(self, request):
-        users = CustomUser.objects.all()
-        user_data = []
-        
-        for user in users:
-            user_data.append({
-                "user_id": str(user.id),
-                "email": user.email,
-                "phone_number": user.phone_number,
-                "user_type": user.user_type,
-                "full_name": user.full_name,
-                "profile_photo_url": user.profile_photo_url,
-                "email_verified": user.email_verified,
-                "phone_verified": user.phone_verified,
-            })
-        
-        return Response(user_data, status=status.HTTP_200_OK)
-
-#delete user by email endpoint for testing purposes 
-class DeleteUserByEmailView(APIView):
-    def delete(self, request, email):
-        try:
-            user = CustomUser.objects.get(email=email)
-            user.delete()
-            return Response({"message": f"User with email {email} deleted successfully"}, status=status.HTTP_200_OK)
-        except CustomUser.DoesNotExist:
-            return error_response(
-                message="User not found",
-                errors={"error": f"No user found with email {email}"},
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-        except Exception as e:
-            return error_response(
-                message="Error deleting user",
-                errors={"error": str(e)},
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )

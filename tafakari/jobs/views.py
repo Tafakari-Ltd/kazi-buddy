@@ -5,22 +5,17 @@ from .models import Job, JobCategory, JobSkill
 from rest_framework.response import Response
 from employers.models import EmployerProfile
 from skills.models import Skill
-from rest_framework.pagination import PageNumberPagination
-
-
-
-class CustomPagination(PageNumberPagination):
-    page_size = 10  
-    page_size_query_param = 'page_size' 
-    max_page_size = 100  # Maximum page size allowed
-
+from utils.custom_pagination import CustomPagination
 #Job Categories endpoints
 
 class JobCategoriesListView(views.APIView):
+    pagination_class = CustomPagination
 
     def get(self, request):
         categories = JobCategory.objects.all()
-        serializer = JobCategorySerializer(categories, many=True)
+        paginator = self.pagination_class()
+        paginated_categories = paginator.paginate_queryset(categories, request)
+        serializer = JobCategorySerializer(paginated_categories, many=True)
         return Response(
             {
                 "message": "Job categories retrieved successfully",
@@ -95,12 +90,15 @@ class DeleteJobCategoryView(views.APIView):
 
 class JobsInCategoryView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
+    pagination_class = CustomPagination
 
     def get(self, request, category_id):
         try:
             category = JobCategory.objects.get(pk=category_id)
             jobs = category.jobs.all()
-            serializer = JobSerializer(jobs, many=True)
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobSerializer(paginated_jobs, many=True)
             return Response(
                 {
                     "message": "Jobs in category retrieved successfully",
@@ -261,14 +259,17 @@ class UpdateJobStatusView(views.APIView):
 
 class JobsByEmployerView(views.APIView):
         permission_classes = [permissions.IsAuthenticated]
+        pagination_class = CustomPagination
 
         def get(self, request):
             employer_id = request.query_params.get('employer_id')
             if not employer_id:
                 return Response({"error": "Employer ID is required"}, status=400)
             try:
+                paginator = self.pagination_class()
                 jobs = Job.objects.filter(employer=employer_id)
-                serializer = JobSerializer(jobs, many=True)
+                paginated_jobs = paginator.paginate_queryset(jobs, request)
+                serializer = JobSerializer(paginated_jobs, many=True)
                 return Response(
                     {
                         "message": f"Jobs  retrieved successfully for employer {jobs[0].employer.user.full_name if jobs else 'Unknown'}",
@@ -281,12 +282,15 @@ class JobsByEmployerView(views.APIView):
         
 class ListJobsByCategoryView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
+    pagination_class = CustomPagination
 
     def get(self, request, category_id):
         try:
             category = JobCategory.objects.get(pk=category_id)
+            paginator = self.pagination_class()
             jobs = category.jobs.all()
-            serializer = JobSerializer(jobs, many=True)
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobSerializer(paginated_jobs, many=True)
             return Response(
                 {
                     "message": f"Jobs in category '{category.name}' retrieved successfully",
@@ -320,15 +324,17 @@ class JobEmployerView(views.APIView):
 
 class ListJobsByFilterView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
-
+    paginator_class = CustomPagination
     def get(self, request):
         filters = {}
         for key in ['job_type', 'urgency_level', 'payment_type', 'status', 'visibility']:
             value = request.query_params.get(key)
             if value:
                 filters[key] = value
+        paginator = self.paginator_class()
         jobs = Job.objects.filter(**filters)
-        serializer = JobSerializer(jobs, many=True)
+        paginated_jobs = paginator.paginate_queryset(jobs, request)
+        serializer = JobSerializer(paginated_jobs, many=True)
         return Response(
             {
                 "message": "Filtered jobs retrieved successfully",

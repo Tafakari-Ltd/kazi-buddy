@@ -8,6 +8,7 @@ from workers.models import WorkerProfile
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from .utils import check_if_user_isOwner
+from utils.custom_pagination import CustomPagination
 
 
 # Create your views here.
@@ -74,6 +75,7 @@ class MyJobApplicationListView(APIView):
     View to list all job applications for a worker.
     """
     permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
     serializer_class = JobApplicationSerializer
 
     def get(self, request, *args, **kwargs):
@@ -85,7 +87,9 @@ class MyJobApplicationListView(APIView):
             }, status=404)
 
         applications = JobApplication.objects.filter(worker=worker_profile)
-        serializer = self.serializer_class(applications, many=True)
+        paginator = self.pagination_class()
+        paginated_applications = paginator.paginate_queryset(applications, request)
+        serializer = self.serializer_class(paginated_applications, many=True)
         return Response({
             'status': 'success',
             'applications': serializer.data
@@ -96,12 +100,15 @@ class JobApplicationDetailView(APIView):
     View to retrieve, update, or delete a job application.
     """
     permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
     serializer_class = JobApplicationSerializer
 
     def get(self, request, *args, **kwargs):
         application_id = kwargs.get('application_id')
         try:
             application = JobApplication.objects.get(id=application_id)
+            paginator = self.pagination_class()
+            paginated_application = paginator.paginate_queryset([application], request)
         except JobApplication.DoesNotExist:
             return Response({
                 'status': 'error',
@@ -109,7 +116,7 @@ class JobApplicationDetailView(APIView):
             }, status=404)
         #check wheather the user is the owner of the application
         check_if_user_isOwner(request.user, application_id)
-        serializer = self.serializer_class(application)
+        serializer = self.serializer_class(paginated_application)
         return Response({
             'status': 'success',
             'application': serializer.data
@@ -189,6 +196,7 @@ class SpecificJobApplicationListView(APIView):
     View to list all job applications for a job.
     """
     permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
     serializer_class = JobApplicationSerializer
 
     def get(self, request, *args, **kwargs):
@@ -207,9 +215,11 @@ class SpecificJobApplicationListView(APIView):
                 'status': 'error',
                 'message': 'Job not found.'
             }, status=404)
-
+        
+        paginator = self.pagination_class()
         applications = JobApplication.objects.filter(job=job)
-        serializer = self.serializer_class(applications, many=True)
+        paginated_applications = paginator.paginate_queryset(applications, request)
+        serializer = self.serializer_class(paginated_applications, many=True)
         return Response({
             'status': 'success',
             'applications': serializer.data
@@ -220,11 +230,14 @@ class AllJobApplicationListView(APIView):
     View to list all job applications.
     """
     # permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
     serializer_class = JobApplicationSerializer
 
     def get(self, request, *args, **kwargs):
         applications = JobApplication.objects.all()
-        serializer = self.serializer_class(applications, many=True)
+        paginator = self.pagination_class()
+        paginated_applications = paginator.paginate_queryset(applications, request)
+        serializer = self.serializer_class(paginated_applications, many=True)
         return Response({
             'status': 'success',
             'applications': serializer.data
