@@ -42,7 +42,7 @@ class JobCategoryDetailView(views.APIView):
             return Response({"error": "Category not found"}, status=404)
     
 class CreateJobCategoryView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request):
         serializer = JobCategorySerializer(data=request.data)
@@ -58,7 +58,7 @@ class CreateJobCategoryView(views.APIView):
         return Response(serializer.errors, status=400)
 
 class UpdateJobCategoryView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def put(self, request, category_id):
         try:
@@ -78,7 +78,7 @@ class UpdateJobCategoryView(views.APIView):
             return Response({"error": "Category not found"}, status=404)
 
 class DeleteJobCategoryView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def delete(self, request, category_id):
         try:
@@ -327,7 +327,7 @@ class ListJobsByFilterView(views.APIView):
     paginator_class = CustomPagination
     def get(self, request):
         filters = {}
-        for key in ['job_type', 'urgency_level', 'payment_type', 'status', 'visibility']:
+        for key in ['job_type', 'urgency_level', 'payment_type', 'status', 'visibility','location','category','title']:
             value = request.query_params.get(key)
             if value:
                 filters[key] = value
