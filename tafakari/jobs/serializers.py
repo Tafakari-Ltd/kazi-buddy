@@ -52,7 +52,7 @@ class JobSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         skills_data = validated_data.pop('skills', [])
         # Set employer from request user
-        validated_data['employer'] = self.context['request'].user.employer_profile
+        validated_data['employer'] = self.context['request'].user.employerprofile
         job = Job.objects.create(**validated_data)
         
         # Create job skills

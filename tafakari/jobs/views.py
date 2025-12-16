@@ -164,7 +164,7 @@ class CreateJobView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = JobSerializer(data=request.data)
+        serializer = JobSerializer(data=request.data, context={'request': request})
         #chek wheather the category attribute is provided in the request data and if it is provided, check whether the category exists and if it exists, set the category attribute of the job to the category object
         if 'category' in request.data:
             try:
