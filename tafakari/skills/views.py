@@ -1,13 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from .models import Skill, SkillCategory
 from .serializers import SkillSerializer, SkillCategorySerializer
 
 # Create SkillCategory
 class CreateSkillCategoryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def post(self, request):
         serializer = SkillCategorySerializer(data=request.data)
@@ -18,7 +18,7 @@ class CreateSkillCategoryAPIView(APIView):
 
 # Update SkillCategory
 class UpdateSkillCategoryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def put(self, request, category_id):
         try:
@@ -51,7 +51,7 @@ class SkillCategoryDetailAPIView(APIView):
         return Response({'category': serializer.data})
     
 class DeleteSkillCategoryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def delete(self, request, category_id):
         try:
@@ -129,7 +129,7 @@ class DeleteSkillAPIView(APIView):
         return Response({'message': 'Skill deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
 class DeleteSkillCategoryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def delete(self, request, category_id):
         try:
@@ -144,6 +144,7 @@ class DeleteSkillCategoryAPIView(APIView):
     
 
 # List Skills by Category (updated to show creator)
+
 class SkillListByCategoryAPIView(APIView):
     def get(self, request, category_id):
         try:

@@ -21,6 +21,7 @@ from .views import (
     UpdateJobSkillView,
     DeleteJobSkillView,
     JobEmployerView,
+    FeaturedJobsView
   
 )
 
@@ -49,5 +50,6 @@ urlpatterns = [
     path('skills/update/<uuid:skill_id>/', UpdateJobSkillView.as_view(), name='update-job-skill'),
     path('skills/delete/<uuid:skill_id>/', DeleteJobSkillView.as_view(), name='delete-job-skill'),
     path('employer/<uuid:job_id>/', JobEmployerView.as_view(), name='jobs-by-employer-id'),
+    path('featured/', FeaturedJobsView.as_view(), name='featured-jobs'),
 
 ]
