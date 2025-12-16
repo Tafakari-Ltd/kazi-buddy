@@ -1,76 +1,54 @@
-# serializers.py
 from rest_framework import serializers
-from django.db.models import Q
-from .models import Job, JobCategory, JobSkill
-from employers.models import EmployerProfile
+from .models import Job,JobCategory,JobSkill
 from skills.models import Skill
-
+from employers.serializers import EmployerProfileSerializer
 
 class JobCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = JobCategory
-        fields = ['id', 'name', 'description', 'icon_url']
+        fields = ['id', 'name', 'description']
+        read_only_fields = ['id']
 
+    def create(self, validated_data):
+        return JobCategory.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        instance.name = validated_data.get('name', instance.name)
+        instance.description = validated_data.get('description', instance.description)
+        instance.save()
+        return instance
 
 class JobSkillSerializer(serializers.ModelSerializer):
-    skill_name = serializers.CharField(source='skill.name', read_only=True)
-    
+    # skill = serializers.SlugRelatedField(slug_field='name', queryset=Skill.objects.all())
+
     class Meta:
         model = JobSkill
-        fields = ['id', 'skill', 'skill_name', 'is_required', 'experience_level']
-
-
-class JobListSerializer(serializers.ModelSerializer):
-    """Serializer for job list view with minimal fields"""
-    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    
-    class Meta:
-        model = Job
-        fields = [
-            'id', 'title', 'employer_name', 'category_name', 'location_text',
-            'job_type', 'urgency_level', 'budget_min', 'budget_max', 
-            'payment_type', 'created_at', 'views_count', 'applications_count'
-        ]
-
-
-class JobDetailSerializer(serializers.ModelSerializer):
-    """Serializer for detailed job view"""
-    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
-    employer_id = serializers.UUIDField(source='employer.id', read_only=True)
+        fields = ['id', 'skill','job', 'is_required', 'experience_level']
+        read_only_fields = ['id', 'job']
+        extra_kwargs = {
+            'is_required': {'required': False},
+            'experience_level': {'required': False},
+            'skill': {'required': False},
+        }
+class JobSerializer(serializers.ModelSerializer):
     category = JobCategorySerializer(read_only=True)
     job_skills = JobSkillSerializer(many=True, read_only=True)
-    
+    employer = EmployerProfileSerializer(read_only=True)
+
     class Meta:
         model = Job
+
         fields = [
-            'id', 'employer_id', 'employer_name', 'category', 'title', 
-            'description', 'location', 'location_text', 'job_type', 
-            'urgency_level', 'budget_min', 'budget_max', 'payment_type',
-            'start_date', 'end_date', 'estimated_hours', 'max_applicants',
-            'status', 'visibility', 'views_count', 'applications_count',
-            'job_skills', 'created_at', 'updated_at', 'expires_at'
+            'id', 'employer', 'category', 'title', 'description', 'location',
+            'location_text', 'job_type', 'urgency_level', 'budget_min',
+            'budget_max', 'payment_type', 'start_date', 'end_date',
+            'estimated_hours', 'max_applicants', 'status', 'visibility',
+            'admin_approved', 'views_count', 'applications_count',
+            'created_at', 'updated_at', 'expires_at', 'filled_at',
+            'job_skills'
         ]
 
 
-class JobCreateUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for creating and updating jobs"""
-    skills = serializers.ListField(
-        child=serializers.DictField(), 
-        write_only=True, 
-        required=False,
-        help_text="List of skills with format: [{'skill_id': 'uuid', 'is_required': true, 'experience_level': 'intermediate'}]"
-    )
-    
-    class Meta:
-        model = Job
-        fields = [
-            'category', 'title', 'description', 'location', 'location_text',
-            'job_type', 'urgency_level', 'budget_min', 'budget_max',
-            'payment_type', 'start_date', 'end_date', 'estimated_hours',
-            'max_applicants', 'visibility', 'expires_at', 'skills'
-        ]
-    
     def create(self, validated_data):
         skills_data = validated_data.pop('skills', [])
         # Set employer from request user
@@ -117,3 +95,22 @@ class FeaturedJobSerializer(serializers.ModelSerializer):
             'job_type', 'urgency_level', 'budget_min', 'budget_max', 
             'payment_type', 'created_at'
         ]
+
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'employer': {'required': False},
+            'category': {'required': False},
+            'location': {'required': False},
+            'location_text': {'required': False},
+            'budget_min': {'required': False},
+            'budget_max': {'required': False},
+            'start_date': {'required': False},
+            'end_date': {'required': False},
+            'estimated_hours': {'required': False},
+            'max_applicants': {'required': False},
+            'status': {'required': False},
+            'visibility': {'required': False},
+            'description': {'required': False},
+            'job_type': {'required': False},
+            'payment_type': {'required': False},
+        }

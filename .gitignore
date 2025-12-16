@@ -8,3 +8,6 @@ __pycache__/
 *.egg
 *.whl
 *.mypy_cache/
+*db.sqlite3
+.env
+tafakarienv/

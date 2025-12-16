@@ -1,12 +1,12 @@
 from django.db import models
 from django.utils import timezone
 from django.db.models import JSONField
+from django.core.exceptions import ValidationError
 
 from accounts.models import CustomUser
 import uuid
 
-# Create your models here.
-# employers/models.py
+#
 
 class EmployerProfile(models.Model):
     BUSINESS_TYPES = [
@@ -37,3 +37,18 @@ class EmployerProfile(models.Model):
     admin_notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    def clean(self):
+        if self.user.user_type != "employer":
+            raise ValidationError("Only users with user_type='employer' can have an EmployerProfile.")
+
+        from workers.models import WorkerProfile
+        if WorkerProfile.objects.filter(user=self.user).exists():
+            raise ValidationError("User already has a WorkerProfile.")
+        
+        
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+

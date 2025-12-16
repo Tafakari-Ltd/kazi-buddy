@@ -1,7 +1,9 @@
 from rest_framework import serializers
 from .models import WorkerProfile
+from accounts.serializers import UserSerializer
 
 class WorkerProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
     class Meta:
         model = WorkerProfile
         fields = [

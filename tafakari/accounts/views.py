@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser
 from .serializers import RegisterUserSerializer, LoginSerializer
-from utils.views import get_tokens_for_user, send_otp_to_email,generate_otp,validate_otp
+from utils.views import get_tokens_for_user, send_otp_to_email,generate_otp,validate_otp,get_userType_fromToken
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
@@ -13,19 +13,52 @@ import requests
 from django.urls import reverse
 from django.views import View
 from django.shortcuts import render
+from workers.models import WorkerProfile
+from employers.models import EmployerProfile
+from django.db import transaction
 import jwt
 import json
 import requests
+from utils.views import upload_file_to_supabase,get_file_url_from_supabase
+from utils.custom_error import error_response
 
 User = CustomUser
 
 
 class RegisterView(APIView):
     def post(self, request):
+        # Extract the file from the request
+        profile_pic = request.FILES.get('profile_photo')
+
         serializer = RegisterUserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            
+
+            # Upload the profile picture to Supabase and get the URL
+            if profile_pic:
+                try:
+                    file_name = f"profile_pics/{user.id}_{profile_pic.name}"
+                    # Save the uploaded file temporarily to the filesystem
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                        for chunk in profile_pic.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    
+                    # Upload the file using its temporary path
+                    profile_photo_url = upload_file_to_supabase(temp_file_path, file_name, 'images')
+
+                    
+                    # Clean up the temporary file
+                    import os
+                    os.remove(temp_file_path)
+                    if profile_photo_url:
+                        # profile_photo_url = get_file_url_from_supabase(file_name, 'images')
+                        user.profile_photo_url = profile_photo_url
+                        user.save()
+                except Exception as e:
+                    print(f"Failed to upload profile picture: {str(e)}")
+
             # Generate and send verification OTP
             try:
                 otp_code = generate_otp(user, 'registration')
@@ -43,24 +76,45 @@ class RegisterView(APIView):
                     "email": user.email,
                     "user_type": user.user_type,
                     "full_name": user.full_name,
+                    "profile_photo_url": user.profile_photo_url,
                 },
             }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return error_response(
+            message="error during register",
+            errors=serializer.errors,
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    
+    
 class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            
+            if not user.email_verified :
+                return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                if not user.is_verified:
+                    return Response({"error": "You are not approved by admin yet. Please wait for approval."}, status=status.HTTP_403_FORBIDDEN)
+            
             tokens = get_tokens_for_user(user)
+            user_type = get_userType_fromToken(tokens['access'])
             otp_code = generate_otp(user, 'login')
             send_otp_to_email(user, otp_code, 'login')
             return Response({
                 "message": "Login successful",
                 "user_id": str(user.id),
+                "user_type": user_type,
                 "tokens": tokens
             })
-        return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        # return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        return error_response(
+            message="error during login",
+            errors=serializer.errors,
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
@@ -211,25 +265,56 @@ class LoginPage(View):
 
 class UserProfileView(APIView):
     def get(self, request):
-        if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            if not request.user.is_authenticated:
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Authentication required",
+                        "stack": {},
+                        "error": {
+                            "statusCode": status.HTTP_401_UNAUTHORIZED,
+                            "status": "error"
+                        }
+                    },
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            
+            user = request.user
+            return Response({
+                "user_id": str(user.id),
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "user_type": user.user_type,
+                "full_name": user.full_name,
+                "profile_photo_url": user.profile_photo_url,
+                "email_verified": user.email_verified,
+                "phone_verified": user.phone_verified,
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(
+                message="Error retrieving user profile",
+                errors={"error": str(e)},
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
         
-        user = request.user
-        return Response({
-            "user_id": str(user.id),
-            "email": user.email,
-            "phone_number": user.phone_number,
-            "user_type": user.user_type,
-            "full_name": user.full_name,
-            "profile_photo_url": user.profile_photo_url,
-            "email_verified": user.email_verified,
-            "phone_verified": user.phone_verified,
-        }, status=status.HTTP_200_OK)
-    
+
 class UpdateUserProfileView(APIView):
         def put(self, request):
             if not request.user.is_authenticated:
-                return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+                # return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Error updating user profile",
+                        "stack": {"error": "Authentication required"},
+                        "error": {
+                            "statusCode": status.HTTP_401_UNAUTHORIZED,
+                            "status": "error"
+                        }
+                    },
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
             
             user = request.user
             data = request.data
@@ -239,6 +324,7 @@ class UpdateUserProfileView(APIView):
             user.phone_number = data.get("phone_number", user.phone_number)
             user.profile_photo_url = data.get("profile_photo_url", user.profile_photo_url)
             
+            print(f"user photo url: {user.profile_photo_url}")
             try:
                 user.save()
                 return Response({
@@ -253,31 +339,54 @@ class UpdateUserProfileView(APIView):
                     "phone_verified": user.phone_verified,
                 }, status=status.HTTP_200_OK)
             except Exception as e:
-                return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                # return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return error_response(
+                    message="Error updating user profile",
+                    errors={"error": str(e)},
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
     
 class LogoutView(APIView):
     def post(self, request):
         if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+            # return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+            return error_response(
+                message="Error during logout",
+                errors={"error": "Authentication required"},
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
         
         # Invalidate the user's tokens
         try:
             RefreshToken.for_user(request.user)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_response(
+                message="Error during logout",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
 class DeleteAccountView(APIView):
-            def delete(self, request):
-                if not request.user.is_authenticated:
-                    return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
-                
-                user = request.user
-                try:
-                    user.delete()
-                    return Response({"message": "Account deleted successfully"}, status=status.HTTP_200_OK)
-                except Exception as e:
-                    return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    def delete(self, request):
+        if not request.user.is_authenticated:
+            return error_response(
+                message="Error deleting account",
+                errors={"error": "Authentication required"},
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        user = request.user
+        try:
+            user.delete()
+            return Response({"message": "Account deleted successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(
+                message="Error deleting account",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
                 
 
 class VerifyEmailView(APIView):
@@ -288,16 +397,31 @@ class VerifyEmailView(APIView):
         
         try:         
             user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        except CustomUser.DoesNotExist as e:
+            return error_response(
+                message="User not found",
+                errors={"error": str(e)},
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
-        if validate_otp(user, otp_code, otp_type):
-            user.email_verified = True
-            user.save()
-            return Response({"message": "Email verified successfully"})
-        
-        return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
-
+        try:
+            if validate_otp(user, otp_code, otp_type):
+                user.email_verified = True
+                user.save()
+                return Response({"message": "Email verified successfully"})
+            else:
+                return error_response(
+                    message="Invalid or expired OTP",
+                    errors={"error": "Invalid or expired OTP"},
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+            
+        except Exception as e:
+            return error_response(
+                message="Error verifying email",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class PasswordResetView(APIView):
     def post(self, request):
@@ -308,7 +432,11 @@ class PasswordResetView(APIView):
         try:
             user = CustomUser.objects.get(email=email)
         except CustomUser.DoesNotExist:
-            return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return error_response(
+                message="User with this email does not exist",
+                errors={"error": "User with this email does not exist"},
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
         otp_code = generate_otp(user, 'password_reset')
         send_otp_to_email(user, otp_code, 'password_reset')
@@ -317,3 +445,4 @@ class PasswordResetView(APIView):
             "message": "Password reset OTP sent to your email",
             "user_id": str(user.id)
         }, status=status.HTTP_200_OK)
+

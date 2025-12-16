@@ -10,7 +10,8 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['phone_number', 'email', 'password', 'user_type', 'full_name']
+        fields = ['phone_number', 'email', 'password', 'user_type', 'full_name','username']
+        
 
     
 
