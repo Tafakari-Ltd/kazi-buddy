@@ -8,10 +8,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from .models import Job, JobCategory, Skill
-from .serializers import (
-    FeaturedJobSerializer, JobListSerializer, JobDetailSerializer, 
-    JobCreateUpdateSerializer
-)
+from .serializers import FeaturedJobSerializer
 from employers.models import EmployerProfile
 from skills.models import Skill
 from utils.custom_pagination import CustomPagination
@@ -266,25 +263,75 @@ class UpdateJobStatusView(views.APIView):
             return Response({"error": "Job not found"}, status=404)
 
 
+class ToggleFeaturedJobView(views.APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, job_id):
+        """
+        Toggle the featured status of a job.
+        Body: {"is_featured": true/false}
+        """
+        try:
+            job = Job.objects.get(pk=job_id)
+            is_featured = request.data.get('is_featured')
+            
+            if is_featured is None:
+                return Response({
+                    "error": "is_featured field is required"
+                }, status=400)
+            
+            if not isinstance(is_featured, bool):
+                return Response({
+                    "error": "is_featured must be a boolean value"
+                }, status=400)
+            
+            job.is_featured = is_featured
+            job.save()
+            
+            return Response({
+                "message": f"Job {'marked as featured' if is_featured else 'removed from featured'} successfully",
+                "data": {
+                    "id": str(job.id),
+                    "title": job.title,
+                    "is_featured": job.is_featured
+                }
+            }, status=200)
+            
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+
 class FeaturedJobsView(views.APIView):
     """
-    GET /jobs/featured/ - List featured jobs
+    GET /jobs/featured/ - List featured jobs with pagination
     """
+    pagination_class = CustomPagination
     
     def get(self, request):
         try:
+            # Query featured jobs with proper optimization
             featured_jobs = Job.objects.filter(
                 is_featured=True,
                 status='active',
                 admin_approved=True,
                 visibility='public'
-            ).select_related('employer', 'category').prefetch_related('urgency_level','budget_min')
+            ).select_related(
+                'employer__user',  # Optimize employer data access
+                'category'
+            ).order_by('-created_at')  # Show newest featured jobs first
             
-            serializer = FeaturedJobSerializer(featured_jobs, many=True)
+            # Apply pagination
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(featured_jobs, request)
             
-            return Response({
-                'featured_jobs': serializer.data
-            }, status=status.HTTP_200_OK)
+            # Serialize the paginated data
+            serializer = FeaturedJobSerializer(paginated_jobs, many=True)
+            
+            # Return paginated response
+            return paginator.get_paginated_response({
+                'message': 'Featured jobs retrieved successfully',
+                'data': serializer.data
+            })
             
         except Exception as e:
             return Response({
