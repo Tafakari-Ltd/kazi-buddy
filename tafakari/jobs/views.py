@@ -165,7 +165,7 @@ class CreateJobView(views.APIView):
 
     def post(self, request):
         serializer = JobSerializer(data=request.data, context={'request': request})
-        #chek wheather the category attribute is provided in the request data and if it is provided, check whether the category exists and if it exists, set the category attribute of the job to the category object
+        # check whether the category exists in the database
         if 'category' in request.data:
             try:
                 category = JobCategory.objects.get(pk=request.data['category'])
