@@ -1,8 +1,11 @@
 from django.shortcuts import render
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
-from django.core.mail import send_mail
+# from django.core.mail import send_mail  # Commented out - using smtplib instead
 from django.utils.timezone import now
 from django.conf import settings
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from accounts.models import OTPVerification
 from django.utils import timezone
 from django.template.loader import render_to_string
@@ -92,19 +95,63 @@ def generate_otp(user, otp_type, expiration_minutes=5):
 #         raise
 
 
+# Django send_mail implementation
+# def send_email_async(subject, html_message, recipient_list):
+#     """Send email in a separate thread to avoid blocking"""
+#     def _send():
+#         try:
+#             send_mail(
+#                 subject,
+#                 '',  # plain text message
+#                 settings.DEFAULT_FROM_EMAIL,
+#                 recipient_list,
+#                 fail_silently=False,
+#                 html_message=html_message,
+#                 # timeout=20,  # Add timeout to prevent hanging
+#             )
+#             logger.info(f"Email sent successfully to {recipient_list}")
+#         except Exception as e:
+#             logger.error(f"Failed to send email: {str(e)}")
+#     
+#     thread = Thread(target=_send)
+#     thread.daemon = True  # Thread will not block app shutdown
+#     thread.start()
+
+
 def send_email_async(subject, html_message, recipient_list):
-    """Send email in a separate thread to avoid blocking"""
+    """Send email in a separate thread using smtplib to avoid blocking"""
     def _send():
         try:
-            send_mail(
-                subject,
-                '',  # plain text message
-                settings.DEFAULT_FROM_EMAIL,
-                recipient_list,
-                fail_silently=False,
-                html_message=html_message,
-                # timeout=20,  # Add timeout to prevent hanging
-            )
+            # Get email configuration from Django settings
+            email_host = getattr(settings, 'EMAIL_HOST', 'smtp.gmail.com')
+            email_port = getattr(settings, 'EMAIL_PORT', 587)
+            email_host_user = getattr(settings, 'EMAIL_HOST_USER', settings.DEFAULT_FROM_EMAIL)
+            email_host_password = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            use_tls = getattr(settings, 'EMAIL_USE_TLS', True)
+            
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From'] = settings.DEFAULT_FROM_EMAIL
+            msg['To'] = ', '.join(recipient_list)
+            
+            # Attach HTML content
+            html_part = MIMEText(html_message, 'html')
+            msg.attach(html_part)
+            
+            # Send email using SMTP
+            if use_tls:
+                server = smtplib.SMTP(email_host, email_port, timeout=20)
+                server.starttls()
+            else:
+                server = smtplib.SMTP_SSL(email_host, email_port, timeout=20)
+            
+            if email_host_password:
+                server.login(email_host_user, email_host_password)
+            
+            server.sendmail(settings.DEFAULT_FROM_EMAIL, recipient_list, msg.as_string())
+            server.quit()
+            
             logger.info(f"Email sent successfully to {recipient_list}")
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")
@@ -112,6 +159,7 @@ def send_email_async(subject, html_message, recipient_list):
     thread = Thread(target=_send)
     thread.daemon = True  # Thread will not block app shutdown
     thread.start()
+
 
 
 def send_otp_to_email(user, otp_code, otp_type):
