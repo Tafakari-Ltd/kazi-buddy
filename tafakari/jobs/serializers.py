@@ -91,7 +91,7 @@ class FeaturedJobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = [
-            'id', 'title', 'employer_name', 'category_name', 'location_text',
+            'id', 'title','description', 'employer_name', 'category_name', 'location_text',
             'job_type', 'urgency_level', 'budget_min', 'budget_max', 
             'payment_type', 'created_at'
         ]
