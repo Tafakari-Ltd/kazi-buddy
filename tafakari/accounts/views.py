@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser
-from .serializers import RegisterUserSerializer, LoginSerializer
+from .serializers import RegisterUserSerializer, LoginSerializer,GoogleOAuthUserSerializer
 from utils.views import get_tokens_for_user, send_otp_to_email,generate_otp,validate_otp,get_userType_fromToken
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
@@ -126,11 +126,145 @@ class GoogleLogin(SocialLoginView):
 
 
 
+# class GoogleLoginCallback(APIView):
+#     def get(self, request):
+#         code = request.GET.get('code')
+#         if not code:
+#             return Response({"error": "Authorization code not provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         # Exchange the authorization code for tokens
+#         token_url = 'https://oauth2.googleapis.com/token'
+#         data = {
+#             'code': code,
+#             'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
+#             'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
+#             'redirect_uri': settings.GOOGLE_OAUTH_CALLBACK_URL,
+#             'grant_type': 'authorization_code',
+#         }
+        
+#         response = requests.post(token_url, data=data)
+#         token_data = response.json()
+        
+#         if 'id_token' not in token_data:
+#             return Response({"error": "No id_token received"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         # Decode the JWT token to get user info
+#         try:
+#             decoded_token = jwt.decode(
+#                 token_data['id_token'],
+#                 options={"verify_signature": False}
+#             )
+#         except jwt.DecodeError:
+#             return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         email = decoded_token.get('email')
+#         name = decoded_token.get('name', '')
+#         picture = decoded_token.get('picture', '')
+        
+#         if not email:
+#             return Response({"error": "Email not provided by Google"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         # Check for existing user first
+#         try:
+#             user = CustomUser.objects.get(email=email)
+#             created = False
+            
+#             # User already exists - log them in
+#             tokens = get_tokens_for_user(user)
+#             otp_code = generate_otp(user, 'login')
+#             send_otp_to_email(user, otp_code, 'login')
+            
+#             return Response({
+#                 "message": "Welcome back! Google login successful",
+#                 "user_id": str(user.id),
+#                 "tokens": tokens,
+#                 "user_created": False,
+#                 "user_info": {
+#                     "email": email,
+#                     "name": user.full_name,
+#                     "profile_photo_url": user.profile_photo_url,
+#                 }
+#             })
+                
+#         except CustomUser.DoesNotExist:
+#             # User doesn't exist - create new user using serializer
+#             try:
+#                 # Generate a unique phone number for Google users
+#                 import time
+#                 temp_phone = f"google_{int(time.time())}"
+                
+#                 # Ensure phone number is unique
+#                 counter = 1
+#                 original_phone = temp_phone
+#                 while CustomUser.objects.filter(phone_number=temp_phone).exists():
+#                     temp_phone = f"{original_phone}_{counter}"
+#                     counter += 1
+                
+#                 # Prepare data for serializer
+#                 user_data = {
+#                     'phone_number': temp_phone,
+#                     'email': email,
+#                     'full_name': name,
+#                     'user_type': 'worker',  # Default user type
+#                     'password': 'google_oauth_user'  # Temporary password since it's OAuth
+#                 }
+                
+#                 # Use your serializer to create the user
+#                 serializer = RegisterUserSerializer(data=user_data)
+#                 if serializer.is_valid():
+#                     user = serializer.save()
+                    
+#                     # Update additional fields not in serializer
+#                     user.profile_photo_url = picture
+#                     user.email_verified = True  # Email is verified by Google
+#                     user.save()
+                    
+#                     # Generate tokens for new user
+#                     tokens = get_tokens_for_user(user)
+#                     otp_code = generate_otp(user, 'registration')
+#                     send_otp_to_email(user, otp_code, 'registration')
+#                     # Send OTP to email for verification
+#                     return Response({
+#                         "message": "Account created successfully! Google login successful",
+#                         "user_id": str(user.id),
+#                         "tokens": tokens,
+#                         "user_created": True,
+#                         "user_info": {
+#                             "email": email,
+#                             "name": name,
+#                             "profile_photo_url": picture,
+#                             "phone_number": temp_phone,
+#                         }
+#                     })
+#                 else:
+#                     return Response({
+#                         "error": "Failed to create user",
+#                         "details": serializer.errors
+#                     }, status=status.HTTP_400_BAD_REQUEST)
+                
+#             except Exception as e:
+#                 # Handle any creation errors
+#                 return Response(
+#                     {"error": f"Failed to create user: {str(e)}"}, 
+#                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#                 )
+
 class GoogleLoginCallback(APIView):
     def get(self, request):
         code = request.GET.get('code')
+        error = request.GET.get('error')
+        
+        # Check if Google returned an error
+        if error:
+            return Response({
+                "error": f"Google OAuth error: {error}",
+                "description": request.GET.get('error_description', 'No description')
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         if not code:
-            return Response({"error": "Authorization code not provided"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "Authorization code not provided"
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Exchange the authorization code for tokens
         token_url = 'https://oauth2.googleapis.com/token'
@@ -142,112 +276,30 @@ class GoogleLoginCallback(APIView):
             'grant_type': 'authorization_code',
         }
         
-        response = requests.post(token_url, data=data)
-        token_data = response.json()
+        try:
+            response = requests.post(token_url, data=data)
+            response.raise_for_status()  # Raise exception for bad status codes
+            token_data = response.json()
+        except requests.exceptions.RequestException as e:
+            return Response({
+                "error": "Failed to exchange code for tokens",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Check for errors in token response
+        if 'error' in token_data:
+            return Response({
+                "error": "Token exchange failed",
+                "details": token_data
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         if 'id_token' not in token_data:
-            return Response({"error": "No id_token received"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Decode the JWT token to get user info
-        try:
-            decoded_token = jwt.decode(
-                token_data['id_token'],
-                options={"verify_signature": False}
-            )
-        except jwt.DecodeError:
-            return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        email = decoded_token.get('email')
-        name = decoded_token.get('name', '')
-        picture = decoded_token.get('picture', '')
-        
-        if not email:
-            return Response({"error": "Email not provided by Google"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check for existing user first
-        try:
-            user = CustomUser.objects.get(email=email)
-            created = False
-            
-            # User already exists - log them in
-            tokens = get_tokens_for_user(user)
-            otp_code = generate_otp(user, 'login')
-            send_otp_to_email(user, otp_code, 'login')
-            
             return Response({
-                "message": "Welcome back! Google login successful",
-                "user_id": str(user.id),
-                "tokens": tokens,
-                "user_created": False,
-                "user_info": {
-                    "email": email,
-                    "name": user.full_name,
-                    "profile_photo_url": user.profile_photo_url,
-                }
-            })
-                
-        except CustomUser.DoesNotExist:
-            # User doesn't exist - create new user using serializer
-            try:
-                # Generate a unique phone number for Google users
-                import time
-                temp_phone = f"google_{int(time.time())}"
-                
-                # Ensure phone number is unique
-                counter = 1
-                original_phone = temp_phone
-                while CustomUser.objects.filter(phone_number=temp_phone).exists():
-                    temp_phone = f"{original_phone}_{counter}"
-                    counter += 1
-                
-                # Prepare data for serializer
-                user_data = {
-                    'phone_number': temp_phone,
-                    'email': email,
-                    'full_name': name,
-                    'user_type': 'worker',  # Default user type
-                    'password': 'google_oauth_user'  # Temporary password since it's OAuth
-                }
-                
-                # Use your serializer to create the user
-                serializer = RegisterUserSerializer(data=user_data)
-                if serializer.is_valid():
-                    user = serializer.save()
-                    
-                    # Update additional fields not in serializer
-                    user.profile_photo_url = picture
-                    user.email_verified = True  # Email is verified by Google
-                    user.save()
-                    
-                    # Generate tokens for new user
-                    tokens = get_tokens_for_user(user)
-                    otp_code = generate_otp(user, 'registration')
-                    send_otp_to_email(user, otp_code, 'registration')
-                    # Send OTP to email for verification
-                    return Response({
-                        "message": "Account created successfully! Google login successful",
-                        "user_id": str(user.id),
-                        "tokens": tokens,
-                        "user_created": True,
-                        "user_info": {
-                            "email": email,
-                            "name": name,
-                            "profile_photo_url": picture,
-                            "phone_number": temp_phone,
-                        }
-                    })
-                else:
-                    return Response({
-                        "error": "Failed to create user",
-                        "details": serializer.errors
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-            except Exception as e:
-                # Handle any creation errors
-                return Response(
-                    {"error": f"Failed to create user: {str(e)}"}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                "error": "No id_token received",
+                "received_fields": list(token_data.keys()),  # Show what we got
+                "token_data": token_data  # Full response for debugging
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
 # #for testing purposes
 

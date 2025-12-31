@@ -7,20 +7,44 @@ from django.db.models import JSONField
 
 
 
+# class CustomUserManager(BaseUserManager):
+#     def create_user(self, phone_number, password=None, **extra_fields):
+#         if not phone_number:
+#             raise ValueError("Phone number is required")
+#         user = self.model(phone_number=phone_number, **extra_fields)
+#         user.set_password(password)
+#         user.save(using=self._db)
+#         return user
+    
+#     def create_superuser(self, phone_number, password=None, **extra_fields):
+#         extra_fields.setdefault("is_superuser", True)
+#         extra_fields.setdefault("is_staff", True)
+#         return self.create_user(phone_number, password, **extra_fields)
+
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
         if not phone_number:
             raise ValueError("Phone number is required")
+        
         user = self.model(phone_number=phone_number, **extra_fields)
-        user.set_password(password)
+        
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()  # For OAuth users
+            
         user.save(using=self._db)
         return user
     
     def create_superuser(self, phone_number, password=None, **extra_fields):
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_staff", True)
+        
+        if password is None:
+            raise ValueError("Superuser must have a password")
+            
         return self.create_user(phone_number, password, **extra_fields)
-
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     USER_TYPES = [
@@ -42,6 +66,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_verified = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     phone_verified = models.BooleanField(default=False)
+    is_oauth_user = models.BooleanField(default=False, null=True, blank=True)
     
     last_login = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
