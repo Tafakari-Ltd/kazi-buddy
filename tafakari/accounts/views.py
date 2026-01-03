@@ -21,6 +21,8 @@ import json
 import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
 from utils.custom_error import error_response
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 User = CustomUser
 
@@ -249,57 +251,170 @@ class GoogleLogin(SocialLoginView):
 #                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
 #                 )
 
+
 class GoogleLoginCallback(APIView):
     def get(self, request):
-        code = request.GET.get('code')
-        error = request.GET.get('error')
-        
-        # Check if Google returned an error
-        if error:
-            return Response({
-                "error": f"Google OAuth error: {error}",
-                "description": request.GET.get('error_description', 'No description')
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not code:
-            return Response({
-                "error": "Authorization code not provided"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Exchange the authorization code for tokens
-        token_url = 'https://oauth2.googleapis.com/token'
-        data = {
-            'code': code,
-            'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
-            'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
-            'redirect_uri': settings.GOOGLE_OAUTH_CALLBACK_URL,
-            'grant_type': 'authorization_code',
-        }
-        
         try:
-            response = requests.post(token_url, data=data)
-            response.raise_for_status()  # Raise exception for bad status codes
-            token_data = response.json()
-        except requests.exceptions.RequestException as e:
+            # Check for errors from Google
+            error = request.GET.get('error')
+            if error:
+                return Response({
+                    "error": f"Google OAuth error: {error}",
+                    "description": request.GET.get('error_description', 'No description')
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get authorization code from Google
+            code = request.GET.get('code')
+            
+            if not code:
+                return Response({
+                    "error": "Authorization code not provided"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Extract user_type from state parameter
+            state_param = request.GET.get('state', '{}')
+            try:
+                state_data = json.loads(state_param)
+                user_type = state_data.get('user_type', 'worker')
+            except (json.JSONDecodeError, AttributeError):
+                # If state is invalid or missing, default to 'worker'
+                user_type = 'worker'
+            
+            # Validate user_type
+            valid_user_types = ['worker', 'employer', 'admin']
+            if user_type not in valid_user_types:
+                return Response({
+                    "error": f"Invalid user_type. Must be one of: {', '.join(valid_user_types)}"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Exchange authorization code for tokens
+            token_url = 'https://oauth2.googleapis.com/token'
+            data = {
+                'code': code,
+                'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
+                'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
+                'redirect_uri': settings.GOOGLE_OAUTH_CALLBACK_URL,
+                'grant_type': 'authorization_code',
+            }
+            
+            try:
+                response = requests.post(token_url, data=data)
+                response.raise_for_status()
+                token_data = response.json()
+            except requests.exceptions.RequestException as e:
+                return Response({
+                    "error": "Failed to exchange code for tokens",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # Check for errors in token response
+            if 'error' in token_data:
+                return Response({
+                    "error": "Token exchange failed",
+                    "details": token_data
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if 'id_token' not in token_data:
+                return Response({
+                    "error": "No id_token received",
+                    "received_fields": list(token_data.keys())
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Verify and decode the ID token
+            try:
+                decoded_token = id_token.verify_oauth2_token(
+                    token_data['id_token'],
+                    google_requests.Request(),
+                    settings.GOOGLE_OAUTH_CLIENT_ID
+                )
+            except Exception as e:
+                return Response({
+                    "error": "Invalid token",
+                    "details": str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Extract user information
+            email = decoded_token.get('email')
+            name = decoded_token.get('name', '')
+            picture = decoded_token.get('picture', '')
+            
+            if not email:
+                return Response({
+                    "error": "Email not provided by Google"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if user already exists
+            try:
+                user = CustomUser.objects.get(email=email)
+                
+                # User exists - log them in
+                tokens = get_tokens_for_user(user)
+                
+                return Response({
+                    "message": "Welcome back! Google login successful",
+                    "user_id": str(user.id),
+                    "tokens": tokens,
+                    "user_created": False,
+                    "user_info": {
+                        "email": email,
+                        "name": user.full_name,
+                        "profile_photo_url": user.profile_photo_url or picture,
+                        "user_type": user.user_type,
+                    }
+                }, status=status.HTTP_200_OK)
+                    
+            except CustomUser.DoesNotExist:
+                # User doesn't exist - create new user with provided user_type
+                try:
+                    # Prepare user data with user_type from frontend
+                    user_data = {
+                        'email': email,
+                        'full_name': name,
+                        'user_type': user_type,  # Use user_type from query params
+                        'profile_photo_url': picture,
+                    }
+                    
+                    # Create user with GoogleOAuthUserSerializer
+                    serializer = GoogleOAuthUserSerializer(data=user_data)
+                    
+                    if serializer.is_valid():
+                        user = serializer.save()
+                        
+                        # Generate tokens for new user
+                        tokens = get_tokens_for_user(user)
+                        
+                        return Response({
+                            "message": "Account created successfully! Google login successful",
+                            "user_id": str(user.id),
+                            "tokens": tokens,
+                            "user_created": True,
+                            "user_info": {
+                                "email": email,
+                                "name": name,
+                                "profile_photo_url": picture,
+                                "user_type": user_type,
+                            }
+                        }, status=status.HTTP_201_CREATED)
+                    else:
+                        return Response({
+                            "error": "Failed to create user",
+                            "details": serializer.errors
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                except Exception as e:
+                    return Response({
+                        "error": "Failed to create user",
+                        "details": str(e)
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        except Exception as e:
+            # Catch any unexpected exceptions
+            import traceback
             return Response({
-                "error": "Failed to exchange code for tokens",
-                "details": str(e)
+                "error": "Unexpected error in Google callback",
+                "details": str(e),
+                "traceback": traceback.format_exc()
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        # Check for errors in token response
-        if 'error' in token_data:
-            return Response({
-                "error": "Token exchange failed",
-                "details": token_data
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if 'id_token' not in token_data:
-            return Response({
-                "error": "No id_token received",
-                "received_fields": list(token_data.keys()),  # Show what we got
-                "token_data": token_data  # Full response for debugging
-            }, status=status.HTTP_400_BAD_REQUEST)
-
 
 # #for testing purposes
 

@@ -68,16 +68,18 @@ class CustomRegisterSerializer(RegisterSerializer):
 class GoogleOAuthUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['phone_number', 'email', 'user_type', 'full_name', 'profile_photo_url']
+        fields = ['email', 'user_type', 'full_name', 'profile_photo_url']
     
     def create(self, validated_data):
-        # Create user without password for OAuth
+        # Create user without phone number for OAuth
         user = CustomUser.objects.create_user(
-            password=None,  # No password needed
-            **validated_data
+            email=validated_data['email'],
+            phone_number=None,  # No phone number for OAuth users
+            password=None,
+            **{k: v for k, v in validated_data.items() if k != 'email'}
         )
-        user.set_unusable_password()  # Mark as OAuth user
+        user.set_unusable_password()
         user.is_oauth_user = True
-        user.email_verified = True  # Google already verified
+        user.email_verified = True
         user.save()
         return user

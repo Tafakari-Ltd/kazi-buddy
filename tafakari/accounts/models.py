@@ -23,28 +23,36 @@ from django.db.models import JSONField
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, phone_number, password=None, **extra_fields):
-        if not phone_number:
-            raise ValueError("Phone number is required")
+    def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
+        # Require either email or phone_number
+        if not email and not phone_number:
+            raise ValueError("Either email or phone number is required")
         
-        user = self.model(phone_number=phone_number, **extra_fields)
+        if email:
+            email = self.normalize_email(email)
+        
+        user = self.model(email=email, phone_number=phone_number, **extra_fields)
         
         if password:
             user.set_password(password)
         else:
-            user.set_unusable_password()  # For OAuth users
-            
+            user.set_unusable_password()
+        
         user.save(using=self._db)
         return user
     
-    def create_superuser(self, phone_number, password=None, **extra_fields):
+    def create_superuser(self, phone_number=None, email=None, password=None, **extra_fields):
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_staff", True)
         
         if password is None:
             raise ValueError("Superuser must have a password")
-            
-        return self.create_user(phone_number, password, **extra_fields)
+        
+        # Superuser needs phone_number
+        if not phone_number:
+            raise ValueError("Superuser must have a phone number")
+        
+        return self.create_user(email=email, phone_number=phone_number, password=password, **extra_fields)
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     USER_TYPES = [
@@ -55,7 +63,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=150, unique=True, null=True, blank=True)
-    phone_number = models.CharField(max_length=20, unique=True)
+    phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     email = models.EmailField(max_length=255, unique=True, null=True, blank=True)
     password = models.CharField(max_length=255)  # Handled by AbstractBaseUser
     user_type = models.CharField(max_length=10, choices=USER_TYPES)
@@ -75,13 +83,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     is_staff = models.BooleanField(default=False)  # Required by Django admin
 
-    USERNAME_FIELD = "phone_number"
+    USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
     objects = CustomUserManager()
 
     def __str__(self):
-        return f"{self.full_name} ({self.phone_number})"
+        return f"{self.full_name} ({self.email})"
     
 
 class OTPVerification(models.Model):
@@ -104,4 +112,4 @@ class OTPVerification(models.Model):
         created_at = models.DateTimeField(default=timezone.now)
 
         def __str__(self):
-            return f"OTP for {self.user.phone_number} ({self.otp_type})"
+            return f"OTP for {self.user.email} ({self.otp_type})"
