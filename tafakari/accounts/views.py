@@ -271,22 +271,6 @@ class GoogleLoginCallback(APIView):
                     "error": "Authorization code not provided"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Extract user_type from state parameter
-            state_param = request.GET.get('state', '{}')
-            try:
-                state_data = json.loads(state_param)
-                user_type = state_data.get('user_type', 'worker')
-            except (json.JSONDecodeError, AttributeError):
-                # If state is invalid or missing, default to 'worker'
-                user_type = 'worker'
-            
-            # Validate user_type
-            valid_user_types = ['worker', 'employer', 'admin']
-            if user_type not in valid_user_types:
-                return Response({
-                    "error": f"Invalid user_type. Must be one of: {', '.join(valid_user_types)}"
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
             # Exchange authorization code for tokens
             token_url = 'https://oauth2.googleapis.com/token'
             data = {
@@ -347,8 +331,18 @@ class GoogleLoginCallback(APIView):
             try:
                 user = CustomUser.objects.get(email=email)
                 
-                # User exists - log them in
+                # Check if user is verified by admin
+                if not user.is_verified:
+                    return Response({
+                        "error": "Account pending approval",
+                        "message": "Your account has been created but is pending admin approval. Please wait for approval before logging in.",
+                        "user_id": str(user.id),
+                        "email": user.email
+                    }, status=status.HTTP_403_FORBIDDEN)
+                
+                # User exists and is approved - log them in
                 tokens = get_tokens_for_user(user)
+                user_type = get_userType_fromToken(tokens['access'])
                 
                 return Response({
                     "message": "Welcome back! Google login successful",
@@ -359,18 +353,19 @@ class GoogleLoginCallback(APIView):
                         "email": email,
                         "name": user.full_name,
                         "profile_photo_url": user.profile_photo_url or picture,
-                        "user_type": user.user_type,
+                        "user_type": user_type,
                     }
                 }, status=status.HTTP_200_OK)
                     
             except CustomUser.DoesNotExist:
-                # User doesn't exist - create new user with provided user_type
+                # User doesn't exist - create new user with default user_type
                 try:
-                    # Prepare user data with user_type from frontend
+                    # Prepare user data - default to 'worker' user_type
+                    # Admin will assign the correct role after approval
                     user_data = {
                         'email': email,
                         'full_name': name,
-                        'user_type': user_type,  # Use user_type from query params
+                        'user_type': 'worker',  # Default user_type
                         'profile_photo_url': picture,
                     }
                     
@@ -380,20 +375,20 @@ class GoogleLoginCallback(APIView):
                     if serializer.is_valid():
                         user = serializer.save()
                         
-                        # Generate tokens for new user
-                        tokens = get_tokens_for_user(user)
+                        # Note: is_verified is False by default (set in serializer)
+                        # User must wait for admin approval before logging in
                         
                         return Response({
-                            "message": "Account created successfully! Google login successful",
+                            "message": "Account created successfully! Pending admin approval.",
                             "user_id": str(user.id),
-                            "tokens": tokens,
                             "user_created": True,
+                            "pending_approval": True,
                             "user_info": {
                                 "email": email,
                                 "name": name,
                                 "profile_photo_url": picture,
-                                "user_type": user_type,
-                            }
+                            },
+                            "note": "Your account has been created but requires admin approval before you can log in. You will be notified once approved."
                         }, status=status.HTTP_201_CREATED)
                     else:
                         return Response({
@@ -417,6 +412,7 @@ class GoogleLoginCallback(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # #for testing purposes
+
 
 class LoginPage(View):
     def get(self, request, *args, **kwargs):

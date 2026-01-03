@@ -29,15 +29,6 @@
             text-align: center;
         }
 
-        .user-type-selector {
-            margin: 20px 0;
-        }
-
-        .user-type-selector label {
-            display: block;
-            margin: 10px 0;
-        }
-
         .google-btn {
             display: inline-block;
             padding: 10px 20px;
@@ -53,6 +44,14 @@
         .google-btn:hover {
             background-color: #357ae8;
         }
+
+        .info-text {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
     </style>
 </head>
 
@@ -61,44 +60,31 @@
         <div class="container">
             <h1 class="title">Sign in</h1>
 
-            <div class="user-type-selector">
-                <p>Select your account type:</p>
-                <label>
-                    <input type="radio" name="user_type" value="worker" checked> Worker
-                </label>
-                <label>
-                    <input type="radio" name="user_type" value="employer"> Employer
-                </label>
-            </div>
-
             <a href="#" id="google-login-btn" class="google-btn">
                 Sign in with Google
             </a>
+
+            <div class="info-text">
+                <strong>Note:</strong> New accounts require admin approval before you can log in.
+            </div>
         </div>
     </div>
 
     <script>
-        // Build Google OAuth URL with user_type in state parameter
+        // Build Google OAuth URL (no user_type needed)
         const googleBtn = document.getElementById('google-login-btn');
 
         googleBtn.addEventListener('click', function (e) {
             e.preventDefault();
 
-            // Get selected user type
-            const userType = document.querySelector('input[name="user_type"]:checked').value;
-
-            // Use state parameter to pass user_type (this is the proper OAuth way)
-            const state = JSON.stringify({ user_type: userType });
-
-            // Build Google OAuth URL with state parameter
+            // Build Google OAuth URL without state parameter
             const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
                 '?redirect_uri=' + encodeURIComponent('{{ google_callback_uri }}') +
                 '&prompt=consent' +
                 '&response_type=code' +
                 '&client_id={{ google_client_id }}' +
                 '&scope=openid%20email%20profile' +
-                '&access_type=offline' +
-                '&state=' + encodeURIComponent(state);
+                '&access_type=offline';
 
             // Redirect to Google
             window.location.href = googleAuthUrl;

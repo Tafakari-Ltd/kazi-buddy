@@ -3,6 +3,12 @@
 ## Overview
 This guide explains how to integrate Google OAuth login with the Kazi Buddy Django backend from your Next.js frontend application.
 
+## ⚠️ IMPORTANT: Admin Approval Required
+**All new Google OAuth users require admin approval before they can log in.**
+- New users are created but cannot log in until approved by admin
+- No user type selection needed - admin assigns roles during approval
+- User type is extracted from JWT token after login
+
 ## Backend Endpoint
 ```
 https://kazi-buddy.onrender.com/api/v1/auth/google/callback/
@@ -17,32 +23,18 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id_here
 
 ## Implementation
 
-### Option 1: Simple Redirect (Recommended)
-
-The simplest approach - just redirect to Google OAuth URL with proper parameters.
-
-#### React/Next.js Component
+### Simple Google Login Button
 
 ```tsx
 // components/GoogleLoginButton.tsx
 'use client'; // if using App Router
 
-interface GoogleLoginButtonProps {
-  userType: 'worker' | 'employer';
-  className?: string;
-}
-
-export function GoogleLoginButton({ userType, className }: GoogleLoginButtonProps) {
+export function GoogleLoginButton({ className }: { className?: string }) {
   const handleGoogleLogin = () => {
-    // OAuth configuration
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     const callbackUri = 'https://kazi-buddy.onrender.com/api/v1/auth/google/callback/';
     
-    // IMPORTANT: Use state parameter to pass user_type
-    // DO NOT modify the redirect_uri - it must match Google Console exactly
-    const state = JSON.stringify({ user_type: userType });
-    
-    // Build Google OAuth URL
+    // Build Google OAuth URL (no user_type needed!)
     const params = new URLSearchParams({
       client_id: googleClientId!,
       redirect_uri: callbackUri,
@@ -50,51 +42,42 @@ export function GoogleLoginButton({ userType, className }: GoogleLoginButtonProp
       scope: 'openid email profile',
       access_type: 'offline',
       prompt: 'consent',
-      state: state,
     });
     
-    // Redirect to Google
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   };
   
   return (
     <button onClick={handleGoogleLogin} className={className}>
-      Sign in with Google as {userType}
+      Sign in with Google
     </button>
   );
 }
 ```
 
-#### Usage Example
+### Usage Example
 
 ```tsx
-// app/login/page.tsx or pages/login.tsx
+// app/login/page.tsx
 import { GoogleLoginButton } from '@/components/GoogleLoginButton';
 
 export default function LoginPage() {
   return (
     <div>
       <h1>Sign In</h1>
-      
-      <div>
-        <h2>Select Account Type</h2>
-        <GoogleLoginButton userType="worker" className="btn-primary" />
-        <GoogleLoginButton userType="employer" className="btn-primary" />
-      </div>
+      <GoogleLoginButton className="btn-primary" />
+      <p className="note">New accounts require admin approval</p>
     </div>
   );
 }
 ```
 
-### Option 2: With Frontend Callback Handler
+### Callback Handler (Optional)
 
-If you want to intercept the callback on the frontend before storing tokens:
-
-#### Callback Page
+If you want to handle the callback on the frontend:
 
 ```tsx
-// app/auth/google/callback/page.tsx (App Router)
-// OR pages/auth/google/callback.tsx (Pages Router)
+// app/auth/google/callback/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -108,10 +91,8 @@ export default function GoogleCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get('code');
-      const state = searchParams.get('state');
       const errorParam = searchParams.get('error');
       
-      // Check for OAuth errors from Google
       if (errorParam) {
         setError(`Google OAuth error: ${errorParam}`);
         setTimeout(() => router.push('/login'), 3000);
@@ -125,22 +106,32 @@ export default function GoogleCallback() {
       }
       
       try {
-        // Forward to Django backend
         const response = await fetch(
-          `https://kazi-buddy.onrender.com/api/v1/auth/google/callback/?code=${code}&state=${state}`
+          `https://kazi-buddy.onrender.com/api/v1/auth/google/callback/?code=${code}`
         );
         
         const data = await response.json();
         
+        // Handle new user (pending approval)
+        if (response.status === 201 && data.pending_approval) {
+          router.push('/pending-approval');
+          return;
+        }
+        
+        // Handle existing user not approved
+        if (response.status === 403) {
+          setError(data.message);
+          router.push('/pending-approval');
+          return;
+        }
+        
+        // Handle approved user
         if (response.ok && data.tokens) {
-          // Save tokens (choose your preferred method)
           localStorage.setItem('access_token', data.tokens.access);
           localStorage.setItem('refresh_token', data.tokens.refresh);
-          
-          // Save user info
           localStorage.setItem('user_info', JSON.stringify(data.user_info));
           
-          // Redirect based on user type
+          // Redirect based on user type from token
           const redirectPath = data.user_info.user_type === 'employer' 
             ? '/employer/dashboard' 
             : '/worker/dashboard';
@@ -179,38 +170,27 @@ export default function GoogleCallback() {
 }
 ```
 
-#### Update Google Login Button for Option 2
+## Backend Response Formats
 
-If using frontend callback handler, update the redirect_uri in the button:
-
-```tsx
-const callbackUri = 'https://your-nextjs-app.com/auth/google/callback';
-```
-
-And add this to your **Google Cloud Console** as an authorized redirect URI.
-
-## Backend Response Format
-
-### Success Response (New User)
+### New User (Pending Approval) - Status 201
 ```json
 {
-  "message": "Account created successfully! Google login successful",
+  "message": "Account created successfully! Pending admin approval.",
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "tokens": {
-    "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-  },
   "user_created": true,
+  "pending_approval": true,
   "user_info": {
     "email": "user@example.com",
     "name": "John Doe",
-    "profile_photo_url": "https://lh3.googleusercontent.com/...",
-    "user_type": "worker"
-  }
+    "profile_photo_url": "https://lh3.googleusercontent.com/..."
+  },
+  "note": "Your account has been created but requires admin approval before you can log in. You will be notified once approved."
 }
 ```
 
-### Success Response (Existing User)
+**⚠️ Note**: No tokens are returned for new users!
+
+### Existing User (Approved) - Status 200
 ```json
 {
   "message": "Welcome back! Google login successful",
@@ -226,6 +206,18 @@ And add this to your **Google Cloud Console** as an authorized redirect URI.
     "profile_photo_url": "https://lh3.googleusercontent.com/...",
     "user_type": "worker"
   }
+}
+```
+
+**Note**: `user_type` is extracted from JWT token, not from user selection!
+
+### Existing User (Not Approved) - Status 403
+```json
+{
+  "error": "Account pending approval",
+  "message": "Your account has been created but is pending admin approval. Please wait for approval before logging in.",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "user@example.com"
 }
 ```
 
@@ -253,15 +245,31 @@ export interface UserInfo {
   email: string;
   name: string;
   profile_photo_url: string;
-  user_type: UserType;
+  user_type?: UserType; // Optional - only present for approved users
 }
 
-export interface GoogleOAuthSuccessResponse {
+export interface GoogleOAuthNewUserResponse {
+  message: string;
+  user_id: string;
+  user_created: true;
+  pending_approval: true;
+  user_info: UserInfo;
+  note: string;
+}
+
+export interface GoogleOAuthApprovedUserResponse {
   message: string;
   user_id: string;
   tokens: GoogleOAuthTokens;
   user_created: boolean;
-  user_info: UserInfo;
+  user_info: UserInfo & { user_type: UserType }; // user_type required for approved users
+}
+
+export interface GoogleOAuthPendingResponse {
+  error: string;
+  message: string;
+  user_id: string;
+  email: string;
 }
 
 export interface GoogleOAuthErrorResponse {
@@ -270,57 +278,60 @@ export interface GoogleOAuthErrorResponse {
   traceback?: string;
 }
 
-export type GoogleOAuthResponse = GoogleOAuthSuccessResponse | GoogleOAuthErrorResponse;
+export type GoogleOAuthResponse = 
+  | GoogleOAuthNewUserResponse 
+  | GoogleOAuthApprovedUserResponse 
+  | GoogleOAuthPendingResponse
+  | GoogleOAuthErrorResponse;
 
-// Type guard
-export function isOAuthError(
-  response: GoogleOAuthResponse
-): response is GoogleOAuthErrorResponse {
-  return 'error' in response;
+// Type guards
+export function isNewUser(response: GoogleOAuthResponse): response is GoogleOAuthNewUserResponse {
+  return 'pending_approval' in response && response.pending_approval === true;
+}
+
+export function isApprovedUser(response: GoogleOAuthResponse): response is GoogleOAuthApprovedUserResponse {
+  return 'tokens' in response;
+}
+
+export function isPendingApproval(response: GoogleOAuthResponse): response is GoogleOAuthPendingResponse {
+  return 'error' in response && response.error === 'Account pending approval';
 }
 ```
 
 ## Important Notes
 
-### 1. State Parameter
-**CRITICAL**: Always pass `user_type` via the `state` parameter, NOT by modifying the redirect_uri.
+### 1. No User Type Selection
+- **Removed**: Users no longer select "Worker" or "Employer" during login
+- **Default**: New users are created with `user_type='worker'`
+- **Admin Control**: Admin assigns the correct role before approving the account
+- **Token-based**: User type is extracted from JWT token after login
 
-✅ **Correct:**
-```javascript
-const state = JSON.stringify({ user_type: 'worker' });
-// redirect_uri stays constant
-```
+### 2. Admin Approval Workflow
+1. User signs in with Google → Account created
+2. User sees "Pending approval" message
+3. Admin reviews account in admin panel
+4. Admin assigns correct role (worker/employer/admin)
+5. Admin approves account (`is_verified=True`)
+6. User can now log in successfully
 
-❌ **Wrong:**
-```javascript
-const callbackUri = 'https://kazi-buddy.onrender.com/api/v1/auth/google/callback/?user_type=worker';
-// This will cause redirect_uri_mismatch error!
-```
+### 3. Google Cloud Console Configuration
 
-### 2. Google Cloud Console Configuration
-
-Make sure these redirect URIs are added in Google Cloud Console:
-
-**For Direct Backend Callback (Option 1):**
+Add this redirect URI in Google Cloud Console:
 - `https://kazi-buddy.onrender.com/api/v1/auth/google/callback/`
 
-**For Frontend Callback (Option 2):**
-- `https://your-nextjs-app.com/auth/google/callback`
-- `http://localhost:3000/auth/google/callback` (for local development)
+For local development:
+- `http://localhost:8000/api/v1/auth/google/callback/`
 
-### 3. Token Storage
+### 4. Token Storage
 
-Choose one of these methods to store JWT tokens:
-
-**Option A: localStorage (Simple, but vulnerable to XSS)**
+**Option A: localStorage**
 ```javascript
 localStorage.setItem('access_token', data.tokens.access);
 localStorage.setItem('refresh_token', data.tokens.refresh);
 ```
 
-**Option B: httpOnly Cookies (More secure)**
+**Option B: httpOnly Cookies (Recommended)**
 ```javascript
-// Set cookies via API route
 // app/api/auth/set-tokens/route.ts
 import { cookies } from 'next/headers';
 
@@ -345,7 +356,7 @@ export async function POST(request: Request) {
 }
 ```
 
-### 4. Using JWT Tokens for API Requests
+### 5. Using JWT Tokens for API Requests
 
 ```typescript
 // utils/api.ts
@@ -365,7 +376,6 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
   if (response.status === 401) {
     const newToken = await refreshAccessToken();
     if (newToken) {
-      // Retry request with new token
       return fetch(url, {
         ...options,
         headers: {
@@ -394,40 +404,47 @@ async function refreshAccessToken(): Promise<string | null> {
     localStorage.setItem('access_token', data.access);
     return data.access;
   } catch {
-    // Refresh failed, redirect to login
     window.location.href = '/login';
     return null;
   }
 }
 ```
 
-## Testing Locally
+## Pending Approval Page
 
-For local development:
+Create a page to show users waiting for approval:
 
-1. Update callback URI in your code:
-   ```typescript
-   const callbackUri = 'http://localhost:8000/api/v1/auth/google/callback/';
-   ```
-
-2. Add to Google Cloud Console:
-   - `http://localhost:8000/api/v1/auth/google/callback/`
-
-3. Make sure Django backend is running on `localhost:8000`
+```tsx
+// app/pending-approval/page.tsx
+export default function PendingApproval() {
+  return (
+    <div className="pending-container">
+      <h1>Account Pending Approval</h1>
+      <p>
+        Your account has been created successfully! However, it requires 
+        admin approval before you can log in.
+      </p>
+      <p>
+        You will receive an email notification once your account has been approved.
+      </p>
+      <p>
+        Please check back later or contact support if you have any questions.
+      </p>
+    </div>
+  );
+}
+```
 
 ## Common Issues
 
 ### Issue: "redirect_uri_mismatch"
 **Solution**: Ensure the redirect_uri in your code **exactly matches** what's in Google Cloud Console (including trailing slash).
 
-### Issue: "Invalid state parameter"
-**Solution**: Make sure you're JSON-encoding the state object:
-```javascript
-const state = JSON.stringify({ user_type: userType });
-```
+### Issue: User can't log in after Google signup
+**Solution**: This is expected! New users require admin approval. Check if `is_verified=True` in the database.
 
 ### Issue: CORS errors
-**Solution**: Ensure Django CORS settings allow your Next.js domain in `settings.py`:
+**Solution**: Ensure Django CORS settings allow your Next.js domain:
 ```python
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
