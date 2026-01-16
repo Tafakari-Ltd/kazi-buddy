@@ -127,298 +127,342 @@ class GoogleLogin(SocialLoginView):
 
 
 
-
-# class GoogleLoginCallback(APIView):
-#     def get(self, request):
-#         code = request.GET.get('code')
-#         if not code:
-#             return Response({"error": "Authorization code not provided"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Exchange the authorization code for tokens
-#         token_url = 'https://oauth2.googleapis.com/token'
-#         data = {
-#             'code': code,
-#             'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
-#             'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
-#             'redirect_uri': settings.GOOGLE_OAUTH_CALLBACK_URL,
-#             'grant_type': 'authorization_code',
-#         }
-        
-#         response = requests.post(token_url, data=data)
-#         token_data = response.json()
-        
-#         if 'id_token' not in token_data:
-#             return Response({"error": "No id_token received"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Decode the JWT token to get user info
-#         try:
-#             decoded_token = jwt.decode(
-#                 token_data['id_token'],
-#                 options={"verify_signature": False}
-#             )
-#         except jwt.DecodeError:
-#             return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         email = decoded_token.get('email')
-#         name = decoded_token.get('name', '')
-#         picture = decoded_token.get('picture', '')
-        
-#         if not email:
-#             return Response({"error": "Email not provided by Google"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Check for existing user first
-#         try:
-#             user = CustomUser.objects.get(email=email)
-#             created = False
-            
-#             # User already exists - log them in
-#             tokens = get_tokens_for_user(user)
-#             otp_code = generate_otp(user, 'login')
-#             send_otp_to_email(user, otp_code, 'login')
-            
-#             return Response({
-#                 "message": "Welcome back! Google login successful",
-#                 "user_id": str(user.id),
-#                 "tokens": tokens,
-#                 "user_created": False,
-#                 "user_info": {
-#                     "email": email,
-#                     "name": user.full_name,
-#                     "profile_photo_url": user.profile_photo_url,
-#                 }
-#             })
-                
-#         except CustomUser.DoesNotExist:
-#             # User doesn't exist - create new user using serializer
-#             try:
-#                 # Generate a unique phone number for Google users
-#                 import time
-#                 temp_phone = f"google_{int(time.time())}"
-                
-#                 # Ensure phone number is unique
-#                 counter = 1
-#                 original_phone = temp_phone
-#                 while CustomUser.objects.filter(phone_number=temp_phone).exists():
-#                     temp_phone = f"{original_phone}_{counter}"
-#                     counter += 1
-                
-#                 # Prepare data for serializer
-#                 user_data = {
-#                     'phone_number': temp_phone,
-#                     'email': email,
-#                     'full_name': name,
-#                     'user_type': 'worker',  # Default user type
-#                     'password': 'google_oauth_user'  # Temporary password since it's OAuth
-#                 }
-                
-#                 # Use your serializer to create the user
-#                 serializer = RegisterUserSerializer(data=user_data)
-#                 if serializer.is_valid():
-#                     user = serializer.save()
-                    
-#                     # Update additional fields not in serializer
-#                     user.profile_photo_url = picture
-#                     user.email_verified = True  # Email is verified by Google
-#                     user.save()
-                    
-#                     # Generate tokens for new user
-#                     tokens = get_tokens_for_user(user)
-#                     otp_code = generate_otp(user, 'registration')
-#                     send_otp_to_email(user, otp_code, 'registration')
-#                     # Send OTP to email for verification
-#                     return Response({
-#                         "message": "Account created successfully! Google login successful",
-#                         "user_id": str(user.id),
-#                         "tokens": tokens,
-#                         "user_created": True,
-#                         "user_info": {
-#                             "email": email,
-#                             "name": name,
-#                             "profile_photo_url": picture,
-#                             "phone_number": temp_phone,
-#                         }
-#                     })
-#                 else:
-#                     return Response({
-#                         "error": "Failed to create user",
-#                         "details": serializer.errors
-#                     }, status=status.HTTP_400_BAD_REQUEST)
-                
-#             except Exception as e:
-#                 # Handle any creation errors
-#                 return Response(
-#                     {"error": f"Failed to create user: {str(e)}"}, 
-#                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#                 )
-
-
 class GoogleLoginCallback(APIView):
     def get(self, request):
         try:
-            # Check for errors from Google
-            error = request.GET.get('error')
+           
+            #Handle Google OAuth errors
+           
+            error = request.GET.get("error")
             if error:
-                return Response({
-                    "error": f"Google OAuth error: {error}",
-                    "description": request.GET.get('error_description', 'No description')
-                }, status=status.HTTP_400_BAD_REQUEST)
+                message = request.GET.get("error_description", "Google authentication failed")
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/login"
+                    f"?status=error&message={message}"
+                )
+
+            # Get authorization code
             
-            # Get authorization code from Google
-            code = request.GET.get('code')
-            
+            code = request.GET.get("code")
             if not code:
-                return Response({
-                    "error": "Authorization code not provided"
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/login"
+                    f"?status=error&message=Authorization code not provided"
+                )
 
+            
+            #Get and validate user_type
+            
             requested_user_type = request.GET.get("user_type", "worker")
+            ALLOWED_USER_TYPES = {"worker", "employer"}
 
-            ALLOWED_USER_TYPES = {"worker","employer"}
             user_type = (
                 requested_user_type
                 if requested_user_type in ALLOWED_USER_TYPES
                 else "worker"
             )
+
             
-            # Exchange authorization code for tokens
-            token_url = 'https://oauth2.googleapis.com/token'
+            #Exchange code for tokens
+            
+            token_url = "https://oauth2.googleapis.com/token"
             data = {
-                'code': code,
-                'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
-                'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
-                'redirect_uri': settings.GOOGLE_OAUTH_CALLBACK_URL,
-                'grant_type': 'authorization_code',
+                "code": code,
+                "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
+                "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
+                "redirect_uri": settings.GOOGLE_OAUTH_CALLBACK_URL,
+                "grant_type": "authorization_code",
             }
-            
+
             try:
                 response = requests.post(token_url, data=data)
                 response.raise_for_status()
                 token_data = response.json()
-            except requests.exceptions.RequestException as e:
-                return Response({
-                    "error": "Failed to exchange code for tokens",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            except requests.exceptions.RequestException:
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/login"
+                    f"?status=error&message=Failed to exchange authorization code"
+                )
+
+            if "error" in token_data:
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/login"
+                    f"?status=error&message=Token exchange failed"
+                )
+
+            if "id_token" not in token_data:
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/login"
+                    f"?status=error&message=No ID token received from Google"
+                )
+
+           
+            # Verify ID token
             
-            # Check for errors in token response
-            if 'error' in token_data:
-                return Response({
-                    "error": "Token exchange failed",
-                    "details": token_data
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            if 'id_token' not in token_data:
-                return Response({
-                    "error": "No id_token received",
-                    "received_fields": list(token_data.keys())
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Verify and decode the ID token
             try:
                 decoded_token = id_token.verify_oauth2_token(
-                    token_data['id_token'],
+                    token_data["id_token"],
                     google_requests.Request(),
                     settings.GOOGLE_OAUTH_CLIENT_ID
                 )
-            except Exception as e:
-                return Response({
-                    "error": "Invalid token",
-                    "details": str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
+            except Exception:
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/login"
+                    f"?status=error&message=Invalid Google token"
+                )
+
+            #Extract user info
             
-            # Extract user information
-            email = decoded_token.get('email')
-            name = decoded_token.get('name', '')
-            picture = decoded_token.get('picture', '')
-            
+            email = decoded_token.get("email")
+            name = decoded_token.get("name", "")
+            picture = decoded_token.get("picture", "")
+
             if not email:
-                return Response({
-                    "error": "Email not provided by Google"
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/login"
+                    f"?status=error&message=Email not provided by Google"
+                )
+
+           
+            #Existing user flow
             
-            # Check if user already exists
             try:
                 user = CustomUser.objects.get(email=email)
-                
-                # Check if user is verified by admin
+
                 if not user.is_verified:
-                    return Response({
-                        "error": "Account pending approval",
-                        "message": "Your account has been created but is pending admin approval. Please wait for approval before logging in.",
-                        "user_id": str(user.id),
-                        "email": user.email
-                    }, status=status.HTTP_403_FORBIDDEN)
-                
-                # User exists and is approved - log them in
+                    message = (
+                        "Your account is pending admin approval. "
+                        "Please wait for approval before logging in."
+                    )
+                    return redirect(
+                        f"{settings.FRONTEND_URL}/auth/login"
+                        f"?status=pending_approval&message={message}"
+                    )
+
                 tokens = get_tokens_for_user(user)
-                user_type = get_userType_fromToken(tokens['access'])
-                
-                return Response({
-                    "message": "Welcome back! Google login successful",
-                    "user_id": str(user.id),
-                    "tokens": tokens,
-                    "user_created": False,
-                    "user_info": {
-                        "email": email,
-                        "name": user.full_name,
-                        "profile_photo_url": user.profile_photo_url or picture,
-                        "user_type": user_type,
-                    }
-                }, status=status.HTTP_200_OK)
-                    
+                user_type_from_token = get_userType_fromToken(tokens["access"])
+
+                return redirect(
+                    f"{settings.FRONTEND_URL}/auth/google/success"
+                    f"?access_token={tokens['access']}"
+                    f"&refresh_token={tokens['refresh']}"
+                    f"&user_id={user.id}"
+                    f"&user_type={user_type_from_token}"
+                )
+
+            
+            #New user flow
+            
             except CustomUser.DoesNotExist:
-                # User doesn't exist - create new user with default user_type
                 try:
-                    # Prepare user data - default to 'worker' user_type
-                    # Admin will assign the correct role after approval
                     user_data = {
-                        'email': email,
-                        'full_name': name,
-                        'user_type': user_type,
-                        'profile_photo_url': picture,
+                        "email": email,
+                        "full_name": name,
+                        "user_type": user_type,
+                        "profile_photo_url": picture,
                     }
-                    
-                    # Create user with GoogleOAuthUserSerializer
+
                     serializer = GoogleOAuthUserSerializer(data=user_data)
-                    
+
                     if serializer.is_valid():
-                        user = serializer.save()
-                        
-                        # Note: is_verified is False by default (set in serializer)
-                        # User must wait for admin approval before logging in
-                        
-                        return Response({
-                            "message": "Account created successfully! Pending admin approval.",
-                            "user_id": str(user.id),
-                            "user_created": True,
-                            "pending_approval": True,
-                            "user_info": {
-                                "email": email,
-                                "name": name,
-                                "profile_photo_url": picture,
-                            },
-                            "note": "Your account has been created but requires admin approval before you can log in. You will be notified once approved."
-                        }, status=status.HTTP_201_CREATED)
-                    else:
-                        return Response({
-                            "error": "Failed to create user",
-                            "details": serializer.errors
-                        }, status=status.HTTP_400_BAD_REQUEST)
-                    
-                except Exception as e:
-                    return Response({
-                        "error": "Failed to create user",
-                        "details": str(e)
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                        serializer.save()
+                        message = (
+                            "Account created successfully! "
+                            "Your account is pending admin approval."
+                        )
+                        return redirect(
+                            f"{settings.FRONTEND_URL}/auth/login"
+                            f"?status=pending_approval&message={message}"
+                        )
+
+                    return redirect(
+                        f"{settings.FRONTEND_URL}/auth/login"
+                        f"?status=error&message=Failed to create user account"
+                    )
+
+                except Exception:
+                    return redirect(
+                        f"{settings.FRONTEND_URL}/auth/login"
+                        f"?status=error&message=Failed to create user"
+                    )
+
+    
+        #Catch-all safeguard
         
-        except Exception as e:
-            # Catch any unexpected exceptions
-            import traceback
-            return Response({
-                "error": "Unexpected error in Google callback",
-                "details": str(e),
-                "traceback": traceback.format_exc()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            return redirect(
+                f"{settings.FRONTEND_URL}/auth/login"
+                f"?status=error&message=Unexpected authentication error"
+            )
+
+
+# class GoogleLoginCallback(APIView):
+#     def get(self, request):
+#         try:
+#             # Check for errors from Google
+#             error = request.GET.get('error')
+#             if error:
+#                 return Response({
+#                     "error": f"Google OAuth error: {error}",
+#                     "description": request.GET.get('error_description', 'No description')
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+            
+#             # Get authorization code from Google
+#             code = request.GET.get('code')
+            
+#             if not code:
+#                 return Response({
+#                     "error": "Authorization code not provided"
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+
+#             requested_user_type = request.GET.get("user_type", "worker")
+
+#             ALLOWED_USER_TYPES = {"worker","employer"}
+#             user_type = (
+#                 requested_user_type
+#                 if requested_user_type in ALLOWED_USER_TYPES
+#                 else "worker"
+#             )
+            
+#             # Exchange authorization code for tokens
+#             token_url = 'https://oauth2.googleapis.com/token'
+#             data = {
+#                 'code': code,
+#                 'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
+#                 'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
+#                 'redirect_uri': settings.GOOGLE_OAUTH_CALLBACK_URL,
+#                 'grant_type': 'authorization_code',
+#             }
+            
+#             try:
+#                 response = requests.post(token_url, data=data)
+#                 response.raise_for_status()
+#                 token_data = response.json()
+#             except requests.exceptions.RequestException as e:
+#                 return Response({
+#                     "error": "Failed to exchange code for tokens",
+#                     "details": str(e)
+#                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+#             # Check for errors in token response
+#             if 'error' in token_data:
+#                 return Response({
+#                     "error": "Token exchange failed",
+#                     "details": token_data
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+            
+#             if 'id_token' not in token_data:
+#                 return Response({
+#                     "error": "No id_token received",
+#                     "received_fields": list(token_data.keys())
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+            
+#             # Verify and decode the ID token
+#             try:
+#                 decoded_token = id_token.verify_oauth2_token(
+#                     token_data['id_token'],
+#                     google_requests.Request(),
+#                     settings.GOOGLE_OAUTH_CLIENT_ID
+#                 )
+#             except Exception as e:
+#                 return Response({
+#                     "error": "Invalid token",
+#                     "details": str(e)
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+            
+#             # Extract user information
+#             email = decoded_token.get('email')
+#             name = decoded_token.get('name', '')
+#             picture = decoded_token.get('picture', '')
+            
+#             if not email:
+#                 return Response({
+#                     "error": "Email not provided by Google"
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+            
+#             # Check if user already exists
+#             try:
+#                 user = CustomUser.objects.get(email=email)
+                
+#                 # Check if user is verified by admin
+#                 if not user.is_verified:
+#                     return Response({
+#                         "error": "Account pending approval",
+#                         "message": "Your account has been created but is pending admin approval. Please wait for approval before logging in.",
+#                         "user_id": str(user.id),
+#                         "email": user.email
+#                     }, status=status.HTTP_403_FORBIDDEN)
+                
+#                 # User exists and is approved - log them in
+#                 tokens = get_tokens_for_user(user)
+#                 user_type = get_userType_fromToken(tokens['access'])
+                
+#                 return Response({
+#                     "message": "Welcome back! Google login successful",
+#                     "user_id": str(user.id),
+#                     "tokens": tokens,
+#                     "user_created": False,
+#                     "user_info": {
+#                         "email": email,
+#                         "name": user.full_name,
+#                         "profile_photo_url": user.profile_photo_url or picture,
+#                         "user_type": user_type,
+#                     }
+#                 }, status=status.HTTP_200_OK)
+                    
+#             except CustomUser.DoesNotExist:
+#                 # User doesn't exist - create new user with default user_type
+#                 try:
+#                     # Prepare user data - default to 'worker' user_type
+#                     # Admin will assign the correct role after approval
+#                     user_data = {
+#                         'email': email,
+#                         'full_name': name,
+#                         'user_type': user_type,
+#                         'profile_photo_url': picture,
+#                     }
+                    
+#                     # Create user with GoogleOAuthUserSerializer
+#                     serializer = GoogleOAuthUserSerializer(data=user_data)
+                    
+#                     if serializer.is_valid():
+#                         user = serializer.save()
+                        
+#                         # Note: is_verified is False by default (set in serializer)
+#                         # User must wait for admin approval before logging in
+                        
+#                         return Response({
+#                             "message": "Account created successfully! Pending admin approval.",
+#                             "user_id": str(user.id),
+#                             "user_created": True,
+#                             "pending_approval": True,
+#                             "user_info": {
+#                                 "email": email,
+#                                 "name": name,
+#                                 "profile_photo_url": picture,
+#                             },
+#                             "note": "Your account has been created but requires admin approval before you can log in. You will be notified once approved."
+#                         }, status=status.HTTP_201_CREATED)
+#                     else:
+#                         return Response({
+#                             "error": "Failed to create user",
+#                             "details": serializer.errors
+#                         }, status=status.HTTP_400_BAD_REQUEST)
+                    
+#                 except Exception as e:
+#                     return Response({
+#                         "error": "Failed to create user",
+#                         "details": str(e)
+#                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+#         except Exception as e:
+#             # Catch any unexpected exceptions
+#             import traceback
+#             return Response({
+#                 "error": "Unexpected error in Google callback",
+#                 "details": str(e),
+#                 "traceback": traceback.format_exc()
+#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # #for testing purposes
 
