@@ -270,6 +270,15 @@ class GoogleLoginCallback(APIView):
                 return Response({
                     "error": "Authorization code not provided"
                 }, status=status.HTTP_400_BAD_REQUEST)
+
+            requested_user_type = request.GET.get("user_type", "worker")
+
+            ALLOWED_USER_TYPES = {"worker","employer"}
+            user_type = (
+                requested_user_type
+                if requested_user_type in ALLOWED_USER_TYPES
+                else "worker"
+            )
             
             # Exchange authorization code for tokens
             token_url = 'https://oauth2.googleapis.com/token'
@@ -365,7 +374,7 @@ class GoogleLoginCallback(APIView):
                     user_data = {
                         'email': email,
                         'full_name': name,
-                        'user_type': 'worker',  # Default user_type
+                        'user_type': user_type,
                         'profile_photo_url': picture,
                     }
                     
