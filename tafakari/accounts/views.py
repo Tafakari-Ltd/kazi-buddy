@@ -11,6 +11,7 @@ from dj_rest_auth.registration.views import SocialLoginView
 from django.conf import settings
 import requests
 from django.urls import reverse
+from django.shortcuts import redirect
 from django.views import View
 from django.shortcuts import render
 from workers.models import WorkerProfile
