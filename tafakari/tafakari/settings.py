@@ -152,6 +152,7 @@ ROOT_URLCONF = 'tafakari.urls'
 WSGI_APPLICATION = 'tafakari.wsgi.application'
 
 
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -161,6 +162,7 @@ WSGI_APPLICATION = 'tafakari.wsgi.application'
 #         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
 
 DATABASES = {
     'default': dj_database_url.config(

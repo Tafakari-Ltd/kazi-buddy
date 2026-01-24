@@ -22,8 +22,8 @@ from .views import (
     UpdateJobSkillView,
     DeleteJobSkillView,
     JobEmployerView,
-    FeaturedJobsView
-  
+    FeaturedJobsView,
+    SearchJobsView
 )
 
 from django.urls import path
@@ -53,5 +53,6 @@ urlpatterns = [
     path('skills/delete/<uuid:skill_id>/', DeleteJobSkillView.as_view(), name='delete-job-skill'),
     path('employer/<uuid:job_id>/', JobEmployerView.as_view(), name='jobs-by-employer-id'),
     path('featured/', FeaturedJobsView.as_view(), name='featured-jobs'),
+    path('search/', SearchJobsView.as_view(), name='search-jobs'),
 
 ]

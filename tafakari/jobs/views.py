@@ -1,5 +1,6 @@
 from time import timezone
 from .serializers import JobSerializer,JobCategorySerializer,JobSkillSerializer
+from .search_serializers import JobSearchSerializer, JobSearchQuerySerializer
 from rest_framework import views, permissions, status
 from .models import Job, JobCategory, JobSkill
 from rest_framework.response import Response
@@ -530,4 +531,160 @@ class DeleteJobSkillView(views.APIView):
             return Response({"message": "Job skill deleted successfully"}, status=204)
         except JobSkill.DoesNotExist:
             return Response({"error": "Job skill not found"}, status=404)
+
+
+class SearchJobsView(views.APIView):
+    """
+    Comprehensive job search endpoint with full-text search, filtering, and sorting
+    GET /jobs/search/ - Search jobs with multiple criteria
+    """
+    pagination_class = CustomPagination
+    
+    def get(self, request):
+        try:
+            # Validate query parameters
+            query_serializer = JobSearchQuerySerializer(data=request.query_params)
+            if not query_serializer.is_valid():
+                return Response({
+                    'error': 'Invalid query parameters',
+                    'details': query_serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = query_serializer.validated_data
+            
+            # Start with base queryset - only approved, active, public jobs
+            queryset = Job.objects.filter(
+                admin_approved=True,
+                status='active',
+                visibility='public'
+            ).select_related(
+                'employer__user',
+                'category'
+            ).prefetch_related(
+                'job_skills__skill'
+            )
+            
+            # Full-text search on title and description
+            search_query = validated_data.get('q', '').strip()
+            if search_query:
+                queryset = queryset.filter(
+                    Q(title__icontains=search_query) | 
+                    Q(description__icontains=search_query)
+                )
+            
+            # Filter by skills
+            skills = validated_data.get('skills', [])
+            if skills:
+                # Try to determine if skills are UUIDs or names
+                skill_filters = Q()
+                for skill in skills:
+                    # Check if it looks like a UUID
+                    try:
+                        from uuid import UUID
+                        UUID(skill)
+                        skill_filters |= Q(job_skills__skill__id=skill)
+                    except (ValueError, AttributeError):
+                        # Treat as skill name
+                        skill_filters |= Q(job_skills__skill__name__iexact=skill)
+                
+                queryset = queryset.filter(skill_filters).distinct()
+            
+            # Filter by category
+            category = validated_data.get('category')
+            if category:
+                queryset = queryset.filter(category_id=category)
+            
+            # Filter by location (case-insensitive partial match)
+            location = validated_data.get('location', '').strip()
+            if location:
+                queryset = queryset.filter(location_text__icontains=location)
+            
+            # Filter by job type
+            job_type = validated_data.get('job_type')
+            if job_type:
+                queryset = queryset.filter(job_type=job_type)
+            
+            # Filter by urgency level
+            urgency_level = validated_data.get('urgency_level')
+            if urgency_level:
+                queryset = queryset.filter(urgency_level=urgency_level)
+            
+            # Filter by payment type
+            payment_type = validated_data.get('payment_type')
+            if payment_type:
+                queryset = queryset.filter(payment_type=payment_type)
+            
+            # Filter by budget range
+            budget_min = validated_data.get('budget_min')
+            budget_max = validated_data.get('budget_max')
+            
+            if budget_min is not None:
+                # Jobs where the minimum budget is at least the user's minimum
+                queryset = queryset.filter(
+                    Q(budget_min__gte=budget_min) | Q(budget_min__isnull=True)
+                )
+            
+            if budget_max is not None:
+                # Jobs where the maximum budget is at most the user's maximum
+                queryset = queryset.filter(
+                    Q(budget_max__lte=budget_max) | Q(budget_max__isnull=True)
+                )
+            
+            # Sorting
+            sort_by = validated_data.get('sort_by', 'created_at')
+            order = validated_data.get('order', 'desc')
+            
+            # Map urgency levels to numeric values for sorting
+            if sort_by == 'urgency_level':
+                urgency_order = {
+                    'urgent': 4,
+                    'high': 3,
+                    'medium': 2,
+                    'low': 1
+                }
+                # For urgency, we'll sort in Python after fetching
+                # This is a limitation of Django ORM for choice fields
+                jobs_list = list(queryset)
+                jobs_list.sort(
+                    key=lambda x: urgency_order.get(x.urgency_level, 0),
+                    reverse=(order == 'desc')
+                )
+                queryset = jobs_list
+            else:
+                # Apply database-level sorting
+                order_prefix = '-' if order == 'desc' else ''
+                queryset = queryset.order_by(f'{order_prefix}{sort_by}')
+            
+            # Apply pagination
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(queryset, request)
+            
+            # Serialize the paginated data
+            serializer = JobSearchSerializer(paginated_jobs, many=True)
+            
+            # Return paginated response
+            return paginator.get_paginated_response({
+                'message': 'Search completed successfully',
+                'search_params': {
+                    'query': search_query,
+                    'skills': skills,
+                    'location': location,
+                    'filters_applied': {
+                        'category': str(category) if category else None,
+                        'job_type': job_type,
+                        'urgency_level': urgency_level,
+                        'payment_type': payment_type,
+                        'budget_min': str(budget_min) if budget_min else None,
+                        'budget_max': str(budget_max) if budget_max else None,
+                    },
+                    'sort_by': sort_by,
+                    'order': order
+                },
+                'data': serializer.data
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Search failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
