@@ -126,13 +126,11 @@ class GoogleLogin(SocialLoginView):
 
 
 
-
-
 class GoogleLoginCallback(APIView):
     def get(self, request):
         try:
            
-            #Handle Google OAuth errors
+            # Handle Google OAuth errors
            
             error = request.GET.get("error")
             if error:
@@ -152,9 +150,19 @@ class GoogleLoginCallback(APIView):
                 )
 
             
-            #Get and validate user_type
+            # Get and validate user_type from state parameter
             
-            requested_user_type = request.GET.get("user_type", "worker")
+            state_param = request.GET.get("state")
+            requested_user_type = "worker"  # default
+            
+            if state_param:
+                try:
+                    state_data = json.loads(state_param)
+                    requested_user_type = state_data.get("user_type", "worker")
+                except json.JSONDecodeError:
+                    # If state parsing fails, default to worker
+                    pass
+            
             ALLOWED_USER_TYPES = {"worker", "employer"}
 
             user_type = (
@@ -164,7 +172,7 @@ class GoogleLoginCallback(APIView):
             )
 
             
-            #Exchange code for tokens
+            # Exchange code for tokens
             
             token_url = "https://oauth2.googleapis.com/token"
             data = {
@@ -212,7 +220,7 @@ class GoogleLoginCallback(APIView):
                     f"?status=error&message=Invalid Google token"
                 )
 
-            #Extract user info
+            # Extract user info
             
             email = decoded_token.get("email")
             name = decoded_token.get("name", "")
@@ -225,7 +233,7 @@ class GoogleLoginCallback(APIView):
                 )
 
            
-            #Existing user flow
+            # Existing user flow
             
             try:
                 user = CustomUser.objects.get(email=email)
@@ -252,7 +260,7 @@ class GoogleLoginCallback(APIView):
                 )
 
             
-            #New user flow
+            # New user flow
             
             except CustomUser.DoesNotExist:
                 try:
@@ -288,7 +296,7 @@ class GoogleLoginCallback(APIView):
                     )
 
     
-        #Catch-all safeguard
+        # Catch-all safeguard
         
         except Exception:
             return redirect(
