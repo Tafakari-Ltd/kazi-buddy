@@ -5,14 +5,13 @@ from .serializers import JobSerializer
 
 class JobSearchSerializer(JobSerializer):
     """
-    Extended job serializer for search results with additional computed fields
+    Extended job serializer for search results with additional computed fields.
+    Inherits conditional employer filtering from JobSerializer.
     """
-    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
     skill_names = serializers.SerializerMethodField()
     
     class Meta(JobSerializer.Meta):
-        fields = JobSerializer.Meta.fields + ['employer_name', 'category_name', 'skill_names']
+        fields = JobSerializer.Meta.fields + ['skill_names']
     
     def get_skill_names(self, obj):
         """Return list of skill names for this job"""

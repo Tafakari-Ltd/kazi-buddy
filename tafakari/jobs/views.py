@@ -105,7 +105,7 @@ class JobsInCategoryView(views.APIView):
             jobs = category.jobs.all()
             paginator = self.pagination_class()
             paginated_jobs = paginator.paginate_queryset(jobs, request)
-            serializer = JobSerializer(paginated_jobs, many=True)
+            serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
             return Response(
                 {
                     "message": "Jobs in category retrieved successfully",
@@ -132,7 +132,7 @@ class JobListView(views.APIView):
         paginated_jobs = paginator.paginate_queryset(jobs, request)
         
         # Serialize the paginated data
-        serializer = JobSerializer(paginated_jobs, many=True)
+        serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
         
         # Return paginated response
         return paginator.get_paginated_response({
@@ -149,7 +149,7 @@ class JobDetailView(views.APIView):
     def get(self, request, job_id):
         try:
             job = Job.objects.get(pk=job_id)
-            serializer = JobSerializer(job)
+            serializer = JobSerializer(job, context={'request': request})
             return Response(
                 {
                     "message": "Job retrieved successfully",
@@ -326,7 +326,7 @@ class FeaturedJobsView(views.APIView):
             paginated_jobs = paginator.paginate_queryset(featured_jobs, request)
             
             # Serialize the paginated data
-            serializer = FeaturedJobSerializer(paginated_jobs, many=True)
+            serializer = FeaturedJobSerializer(paginated_jobs, many=True, context={'request': request})
             
             # Return paginated response
             return paginator.get_paginated_response({
@@ -373,7 +373,7 @@ class ListJobsByCategoryView(views.APIView):
             paginator = self.pagination_class()
             jobs = category.jobs.all()
             paginated_jobs = paginator.paginate_queryset(jobs, request)
-            serializer = JobSerializer(paginated_jobs, many=True)
+            serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
             return Response(
                 {
                     "message": f"Jobs in category '{category.name}' retrieved successfully",
@@ -417,7 +417,7 @@ class ListJobsByFilterView(views.APIView):
         paginator = self.paginator_class()
         jobs = Job.objects.filter(**filters)
         paginated_jobs = paginator.paginate_queryset(jobs, request)
-        serializer = JobSerializer(paginated_jobs, many=True)
+        serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
         return Response(
             {
                 "message": "Filtered jobs retrieved successfully",
@@ -660,7 +660,7 @@ class SearchJobsView(views.APIView):
             paginated_jobs = paginator.paginate_queryset(queryset, request)
             
             # Serialize the paginated data
-            serializer = JobSearchSerializer(paginated_jobs, many=True)
+            serializer = JobSearchSerializer(paginated_jobs, many=True, context={'request': request})
             
             # Return paginated response
             return paginator.get_paginated_response({
