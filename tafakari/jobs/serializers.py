@@ -34,12 +34,13 @@ class JobSerializer(serializers.ModelSerializer):
     category = JobCategorySerializer(read_only=True)
     job_skills = JobSkillSerializer(many=True, read_only=True)
     employer = EmployerProfileSerializer(read_only=True)
+    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
 
     class Meta:
         model = Job
 
         fields = [
-            'id', 'employer', 'category', 'title', 'description', 'location',
+            'id', 'employer', 'employer_name', 'category', 'title', 'description', 'location',
             'location_text', 'job_type', 'urgency_level', 'budget_min',
             'budget_max', 'payment_type', 'start_date', 'end_date',
             'estimated_hours', 'max_applicants', 'status', 'visibility',
@@ -47,6 +48,20 @@ class JobSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'expires_at', 'filled_at',
             'job_skills'
         ]
+    
+    def to_representation(self, instance):
+        """
+        Conditionally include employer details based on authentication status.
+        Unauthenticated users only see employer_name, not the full employer object.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        # Remove employer details if user is not authenticated
+        if not request or not request.user.is_authenticated:
+            data.pop('employer', None)
+        
+        return data
 
 
     def create(self, validated_data):
