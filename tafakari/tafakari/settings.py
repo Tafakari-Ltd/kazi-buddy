@@ -29,12 +29,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG")
 
-ALLOWED_HOSTS = ['*']
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
-
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
+CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS")=="True"
+CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL_ORIGINS")=="True"
+CORS_ALLOWED_ORIGINS=os.getenv("CORS_ALLOWED_ORIGINS").split(",")
 
 # Application definition
 
@@ -70,7 +70,7 @@ INSTALLED_APPS = [
     'channels',
 ]
 
-SITE_ID = 1
+SITE_ID = os.getenv("SITE_ID")
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -236,14 +236,15 @@ EMAIL_TIMEOUT = 10
 # settings.py
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = os.getenv("EMAIL_PORT")
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-EMAIL_USE_TLS = True
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS")
 
 
-FRONTEND_URL = "https://kazibudy.netlify.app"
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
