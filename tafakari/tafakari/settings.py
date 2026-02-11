@@ -35,7 +35,7 @@ ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS")=="True"
 CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL_ORIGINS")=="True"
 CORS_ALLOWED_ORIGINS=os.getenv("CORS_ALLOWED_ORIGINS").split(",")
-
+CSRF_TRUSTED_ORIGINS=os.getenv("CSRF_TRUSTED_ORIGINS").split(",")
 # Application definition
 
 INSTALLED_APPS = [
