@@ -29,7 +29,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG")
+DEBUG = os.getenv("DEBUG") =="True"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS")=="True"
@@ -70,7 +70,7 @@ INSTALLED_APPS = [
     'channels',
 ]
 
-SITE_ID = os.getenv("SITE_ID")
+SITE_ID = int(os.getenv("SITE_ID", 1))
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
