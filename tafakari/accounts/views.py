@@ -260,10 +260,22 @@ class GoogleLoginCallback(APIView):
                 )
 
             
-            # New user flow
+            # New user flow - Registration
             
             except CustomUser.DoesNotExist:
                 try:
+                    # Double-check email uniqueness before creating account
+                    # This prevents race conditions and ensures data integrity
+                    if CustomUser.objects.filter(email=email).exists():
+                        message = (
+                            "An account with this email already exists. "
+                            "Please try logging in instead."
+                        )
+                        return redirect(
+                            f"{settings.FRONTEND_URL}/auth/login"
+                            f"?status=error&message={message}"
+                        )
+                    
                     user_data = {
                         "email": email,
                         "full_name": name,
@@ -284,12 +296,24 @@ class GoogleLoginCallback(APIView):
                             f"?status=pending_approval&message={message}"
                         )
 
+                    # If serializer validation fails, return error
+                    error_message = "Failed to create user account"
+                    if serializer.errors:
+                        # Extract first error message for user-friendly display
+                        first_error = next(iter(serializer.errors.values()))[0]
+                        error_message = str(first_error)
+                    
                     return redirect(
                         f"{settings.FRONTEND_URL}/auth/login"
-                        f"?status=error&message=Failed to create user account"
+                        f"?status=error&message={error_message}"
                     )
 
-                except Exception:
+                except Exception as e:
+                    # Log the exception for debugging
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Google OAuth registration error: {str(e)}")
+                    
                     return redirect(
                         f"{settings.FRONTEND_URL}/auth/login"
                         f"?status=error&message=Failed to create user"
