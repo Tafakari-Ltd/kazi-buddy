@@ -96,3 +96,104 @@ project_setup:
 
     - step: Access API documentation (if using drf-yasg)
       url: http://127.0.0.1:8000/docs/
+
+---
+
+## 🐳 Docker Setup (Recommended)
+
+### Prerequisites
+- Docker
+- Docker Compose
+
+### Quick Start
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/kazibuddy-backend.git
+   cd kazibuddy-backend
+   ```
+
+2. **Create environment file**
+   ```bash
+   cp .env.docker.example .env.docker
+   ```
+   Edit `.env.docker` and update the following:
+   - `SECRET_KEY` - Generate a new Django secret key
+   - `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+   - `SUPABASE_URL` and `SUPABASE_KEY`
+   - `EMAIL_HOST_USER` and `EMAIL_HOST_PASSWORD`
+   - Optionally set `DJANGO_SUPERUSER_*` variables for automatic admin creation
+
+3. **Build and start services**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Access the application**
+   - API: http://localhost:8000
+   - Admin: http://localhost:8000/admin
+
+### Docker Commands
+
+**Start services in background:**
+```bash
+docker-compose up -d
+```
+
+**View logs:**
+```bash
+docker-compose logs -f web
+```
+
+**Run migrations:**
+```bash
+docker-compose exec web python tafakari/manage.py migrate
+```
+
+**Create superuser manually:**
+```bash
+docker-compose exec web python tafakari/manage.py createsuperuser
+```
+
+**Stop services:**
+```bash
+docker-compose down
+```
+
+**Stop and remove volumes (WARNING: deletes database):**
+```bash
+docker-compose down -v
+```
+
+**Rebuild after code changes:**
+```bash
+docker-compose up --build
+```
+
+### Services
+
+The Docker setup includes:
+- **web**: Django application (Daphne ASGI server) on port 8000
+- **db**: PostgreSQL 16 database on port 5432
+- **redis**: Redis 7 for Django Channels on port 6379
+
+### Troubleshooting
+
+**Database connection issues:**
+```bash
+docker-compose logs db
+docker-compose exec db pg_isready -U kazibuddy_user
+```
+
+**Redis connection issues:**
+```bash
+docker-compose logs redis
+docker-compose exec redis redis-cli ping
+```
+
+**Reset database:**
+```bash
+docker-compose down -v
+docker-compose up --build
+```
+
