@@ -14,7 +14,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env.docker
+      - ./tafakari/.env
     networks:
       - kazi-network
     restart: unless-stopped
