@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from .utils import check_if_user_isOwner
 from utils.custom_pagination import CustomPagination
+from django.db import transaction
 
 
 # Create your views here.
@@ -28,47 +29,50 @@ class CreateJobApplicationView(APIView):
                 'message': 'Job ID is required.'
             }, status=400)
 
-        # Check if the job exists
-        try:
-            job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            return Response({
-                'status': 'error',
-                'message': 'Job not found.'
-            }, status=404)
+        # Atomic: duplicate check + application creation must be atomic to prevent
+        # race conditions where two workers could simultaneously create duplicate applications
+        with transaction.atomic():
+            # Lock the job row to prevent concurrent application count issues
+            try:
+                job = Job.objects.select_for_update().get(id=job_id)
+            except Job.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'Job not found.'
+                }, status=404)
 
-        # Check if the worker has already applied for the job
-        worker = request.user
-        worker_profile = WorkerProfile.objects.filter(user=worker).first()
-        if not worker_profile:
+            # Check if the worker has already applied for the job
+            worker = request.user
+            worker_profile = WorkerProfile.objects.filter(user=worker).first()
+            if not worker_profile:
+                return Response({
+                    'status': 'error',
+                    'message': 'Worker profile not found,you need to create a  profile before applying for jobs.'
+                }, status=404)
+            if JobApplication.objects.filter(job=job, worker=worker_profile).exists():
+                return Response({
+                    'status': 'error',
+                    'message': 'You have already applied for this job.'
+                }, status=400)
+
+            serializer = self.serializer_class(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                application = serializer.save(job=job, worker=worker_profile)
+                return Response({
+                    'status': 'success',
+                    'message': 'Job application created successfully.',
+                    'application_id': str(application.id),
+                    'user': {
+                        'id': str(application.worker.id),
+                        'name': application.worker.user.full_name,
+                        'email': application.worker.user.email
+                    }
+                }, status=201)
             return Response({
                 'status': 'error',
-                'message': 'Worker profile not found,you need to create a  profile before applying for jobs.'
-            }, status=404)
-        if JobApplication.objects.filter(job=job, worker=worker_profile).exists():
-            return Response({
-                'status': 'error',
-                'message': 'You have already applied for this job.'
+                'message': 'Failed to create job application.',
+                'errors': serializer.errors
             }, status=400)
-
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            application = serializer.save(job=job, worker=worker_profile)
-            return Response({
-                'status': 'success',
-                'message': 'Job application created successfully.',
-                'application_id': str(application.id),
-                'user': {
-                    'id': str(application.worker.id),
-                    'name': application.worker.user.full_name,
-                    'email': application.worker.user.email
-                }
-            }, status=201)
-        return Response({
-            'status': 'error',
-            'message': 'Failed to create job application.',
-            'errors': serializer.errors
-        }, status=400)
     
 class MyJobApplicationListView(APIView):
     """

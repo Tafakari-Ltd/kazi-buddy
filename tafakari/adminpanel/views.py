@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.utils import timezone
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from accounts.models import CustomUser
 from jobs.models import Job
@@ -36,9 +37,11 @@ class ApproveUserView(APIView):
         if user.is_verified:
             return Response({"message": "User is already verified"}, status=status.HTTP_200_OK)
 
-        user.is_verified = True
-        user.updated_at = timezone.now()
-        user.save()
+        # Atomic: is_verified + updated_at must update together
+        with transaction.atomic():
+            user.is_verified = True
+            user.updated_at = timezone.now()
+            user.save()
 
         serializer = ApproveUserSerializer(user)
         return Response(
@@ -58,9 +61,11 @@ class DeactivateUserView(APIView):
         if not user.is_active:
             return Response({"message": "User is already deactivated"}, status=status.HTTP_200_OK)
 
-        user.is_active = False
-        user.updated_at = timezone.now()
-        user.save()
+        # Atomic: is_active + updated_at must update together
+        with transaction.atomic():
+            user.is_active = False
+            user.updated_at = timezone.now()
+            user.save()
 
         serializer = UserStatusSerializer(user)
         return Response(
@@ -216,24 +221,28 @@ class UpdateJobApplicationStatusView(APIView):
         employer_notes = request.data.get("employer_notes")
         worker_notes = request.data.get("worker_notes")
 
-        application.status = new_status
+        # Atomic: status + timestamps + notes must all update together;
+        # select_for_update prevents concurrent admin status changes
+        with transaction.atomic():
+            application = JobApplication.objects.select_for_update().get(id=application_id)
+            application.status = new_status
 
-        # Set timestamps based on transition
-        if application.status != "pending" and application.reviewed_at is None:
-            application.reviewed_at = timezone.now()
+            # Set timestamps based on transition
+            if application.status != "pending" and application.reviewed_at is None:
+                application.reviewed_at = timezone.now()
 
-        # Mark responded_at for decisive outcomes
-        if application.status in ("accepted", "rejected", "withdrawn"):
-            application.responded_at = timezone.now()
-        else:
-            application.responded_at = None
+            # Mark responded_at for decisive outcomes
+            if application.status in ("accepted", "rejected", "withdrawn"):
+                application.responded_at = timezone.now()
+            else:
+                application.responded_at = None
 
-        if employer_notes is not None:
-            application.employer_notes = employer_notes
-        if worker_notes is not None:
-            application.worker_notes = worker_notes
+            if employer_notes is not None:
+                application.employer_notes = employer_notes
+            if worker_notes is not None:
+                application.worker_notes = worker_notes
 
-        application.save()
+            application.save()
 
         # Use the JobApplicationSerializer for the response representation
         serializer = JobApplicationSerializer(application, context={"request": request})

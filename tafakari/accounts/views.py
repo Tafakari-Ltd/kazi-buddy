@@ -35,9 +35,11 @@ class RegisterView(APIView):
 
         serializer = RegisterUserSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
+            # Atomic: user creation must fully succeed or roll back
+            with transaction.atomic():
+                user = serializer.save()
 
-            # Upload the profile picture to Supabase and get the URL
+            # External I/O: file upload to Supabase — kept outside transaction
             if profile_pic:
                 try:
                     file_name = f"profile_pics/{user.id}_{profile_pic.name}"
@@ -56,13 +58,12 @@ class RegisterView(APIView):
                     import os
                     os.remove(temp_file_path)
                     if profile_photo_url:
-                        # profile_photo_url = get_file_url_from_supabase(file_name, 'images')
                         user.profile_photo_url = profile_photo_url
                         user.save()
                 except Exception as e:
                     print(f"Failed to upload profile picture: {str(e)}")
 
-            # Generate and send verification OTP
+            # External I/O: OTP generation + email — kept outside transaction
             try:
                 otp_code = generate_otp(user, 'registration')
                 send_otp_to_email(user, otp_code, 'registration')
@@ -82,7 +83,6 @@ class RegisterView(APIView):
                     "profile_photo_url": user.profile_photo_url,
                 },
             }, status=status.HTTP_201_CREATED)
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         return error_response(
             message="error during register",
             errors=serializer.errors,
@@ -654,16 +654,18 @@ class VerifyEmailView(APIView):
             )
         
         try:
-            if validate_otp(user, otp_code, otp_type):
-                user.email_verified = True
-                user.save()
-                return Response({"message": "Email verified successfully"})
-            else:
-                return error_response(
-                    message="Invalid or expired OTP",
-                    errors={"error": "Invalid or expired OTP"},
-                    status_code=status.HTTP_400_BAD_REQUEST
-                )
+            # Atomic: OTP validation + email_verified flag must succeed or fail together
+            with transaction.atomic():
+                if validate_otp(user, otp_code, otp_type):
+                    user.email_verified = True
+                    user.save()
+                else:
+                    return error_response(
+                        message="Invalid or expired OTP",
+                        errors={"error": "Invalid or expired OTP"},
+                        status_code=status.HTTP_400_BAD_REQUEST
+                    )
+            return Response({"message": "Email verified successfully"})
             
         except Exception as e:
             return error_response(

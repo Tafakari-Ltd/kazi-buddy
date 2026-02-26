@@ -203,16 +203,20 @@ def send_otp_to_email(user, otp_code, otp_type):
         pass
 
 def validate_otp(user, otp_code, otp_type):
+    # Atomic: OTP lookup + mark verified must be atomic with select_for_update
+    # to prevent the same OTP from being validated concurrently by two requests
+    from django.db import transaction
     try:
-        otp_record = OTPVerification.objects.get(
-            user=user,
-            otp_code=otp_code,
-            otp_type=otp_type,
-            verified_at__isnull=True,
-            expires_at__gt=timezone.now()
-        )
-        otp_record.verified_at = timezone.now()
-        otp_record.save()
+        with transaction.atomic():
+            otp_record = OTPVerification.objects.select_for_update().get(
+                user=user,
+                otp_code=otp_code,
+                otp_type=otp_type,
+                verified_at__isnull=True,
+                expires_at__gt=timezone.now()
+            )
+            otp_record.verified_at = timezone.now()
+            otp_record.save()
         return True
     except OTPVerification.DoesNotExist:
         return False

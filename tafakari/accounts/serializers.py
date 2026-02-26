@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from django.db import transaction
 from .models import CustomUser
 from dj_rest_auth.registration.serializers import RegisterSerializer
 
@@ -17,9 +18,11 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop('password')
-        user = CustomUser.objects.create_user(**validated_data)
-        user.set_password(password)
-        user.save()
+        # Atomic: user creation + password set must succeed or fail together
+        with transaction.atomic():
+            user = CustomUser.objects.create_user(**validated_data)
+            user.set_password(password)
+            user.save()
         return user
     
 class LoginSerializer(serializers.Serializer):
@@ -71,15 +74,16 @@ class GoogleOAuthUserSerializer(serializers.ModelSerializer):
         fields = ['email', 'user_type', 'full_name', 'profile_photo_url']
     
     def create(self, validated_data):
-        # Create user without phone number for OAuth
-        user = CustomUser.objects.create_user(
-            email=validated_data['email'],
-            phone_number=None,  # No phone number for OAuth users
-            password=None,
-            **{k: v for k, v in validated_data.items() if k != 'email'}
-        )
-        user.set_unusable_password()
-        user.is_oauth_user = True
-        user.email_verified = True
-        user.save()
+        # Atomic: OAuth user creation + flag updates must succeed or fail together
+        with transaction.atomic():
+            user = CustomUser.objects.create_user(
+                email=validated_data['email'],
+                phone_number=None,  # No phone number for OAuth users
+                password=None,
+                **{k: v for k, v in validated_data.items() if k != 'email'}
+            )
+            user.set_unusable_password()
+            user.is_oauth_user = True
+            user.email_verified = True
+            user.save()
         return user

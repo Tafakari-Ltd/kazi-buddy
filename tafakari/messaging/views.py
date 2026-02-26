@@ -93,7 +93,6 @@ class SendMessageView(generics.CreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    @transaction.atomic
     def create(self, request, *args, **kwargs):
         recipient = get_object_or_404(CustomUser, id=self.kwargs['user_id'])
         sender = request.user
@@ -107,38 +106,41 @@ class SendMessageView(generics.CreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get or create thread (using ordered participants to prevent duplicates)
-        p1, p2 = sorted([sender, recipient], key=lambda u: u.id)
-        
-        thread, created = MessageThread.objects.get_or_create(
-            participant_1=p1,
-            participant_2=p2,
-            defaults={
-                'job': None,
-                'assignment': None, 
-            }
-        )
-
-        if thread.status == 'blocked':
-            return Response(
-                {"error": "This conversation is blocked"},
-                status=status.HTTP_403_FORBIDDEN
+        # Atomic: thread get_or_create + message creation + thread timestamp update
+        # must all succeed or fail together to prevent orphaned messages
+        with transaction.atomic():
+            # Get or create thread (using ordered participants to prevent duplicates)
+            p1, p2 = sorted([sender, recipient], key=lambda u: u.id)
+            
+            thread, created = MessageThread.objects.get_or_create(
+                participant_1=p1,
+                participant_2=p2,
+                defaults={
+                    'job': None,
+                    'assignment': None, 
+                }
             )
+
+            if thread.status == 'blocked':
+                return Response(
+                    {"error": "This conversation is blocked"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Create message
+            message = Message.objects.create(
+                thread=thread,
+                sender=sender,
+                message_text=message_text,
+                message_type=message_type,
+                attachment_url=attachment_url,
+            )
+            
+            # Update thread timestamp
+            thread.last_message_at = message.created_at
+            thread.save()
         
-        # Create message
-        message = Message.objects.create(
-            thread=thread,
-            sender=sender,
-            message_text=message_text,
-            message_type=message_type,
-            attachment_url=attachment_url,
-        )
-        
-        # Update thread timestamp
-        thread.last_message_at = message.created_at
-        thread.save()
-        
-        # Notify the recipient via WebSocket (if channels is configured)
+        # External I/O: WebSocket notification — kept outside transaction
         channel_layer = get_channel_layer()
         if channel_layer:
             async_to_sync(channel_layer.group_send)(
